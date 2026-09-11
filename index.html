@@ -1,0 +1,2869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QTest Engine — Next-Gen Assessment Platform</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<!-- Firebase SDK (compat v9) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+        mono: ['"Fira Code"', 'monospace'],
+      },
+      colors: {
+        brand: {
+          50: '#f0f7ff', 100: '#e0effe', 200: '#bae0fd', 300: '#7cc7fb',
+          400: '#36abf7', 500: '#0c8fe9', 600: '#0272c7', 700: '#035ba1',
+          800: '#074e85', 900: '#0c416e', 950: '#082a4a'
+        }
+      },
+      animation: {
+        'gradient': 'gradient 8s linear infinite',
+        'float': 'float 4s ease-in-out infinite',
+        'pulse-subtle': 'pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'ripple': 'ripple 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite',
+      },
+      keyframes: {
+        gradient: {
+          '0%, 100%': { 'background-size': '200% 200%', 'background-position': 'left center' },
+          '50%': { 'background-size': '200% 200%', 'background-position': 'right center' }
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-6px)' }
+        },
+        pulseSubtle: {
+          '0%, 100%': { opacity: 1 },
+          '50%': { opacity: 0.65 }
+        },
+        ripple: {
+          '0%': { transform: 'scale(0.8)', opacity: 1 },
+          '100%': { transform: 'scale(2.2)', opacity: 0 }
+        }
+      }
+    }
+  }
+}
+</script>
+<style>
+* { box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; }
+.hidden { display: none !important; }
+
+/* Custom Glassmorphism & Micro-animations */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+.ambient-glow {
+  position: fixed;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.15;
+}
+.dark .ambient-glow { opacity: 0.12; }
+
+/* Interactive Card Motion */
+.interactive-card {
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.interactive-card:hover {
+  transform: translateY(-4px) scale(1.008);
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.08), 0 10px 15px -5px rgba(0, 0, 0, 0.04);
+}
+.dark .interactive-card:hover {
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.4), 0 0 20px 1px rgba(59, 130, 246, 0.1);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+.dark ::-webkit-scrollbar-thumb { background: #334155; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Custom Tab transition */
+.tab-pill {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+.tab-pill.active {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: white !important;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+}
+
+/* Glow effects */
+.live-radar {
+  position: relative;
+}
+.live-radar::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.4);
+  animation: ripple 1.8s infinite;
+}
+
+/* Modal styling */
+.modal-overlay {
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Question Palette Button Active Ring */
+.pal-btn {
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pal-btn:hover {
+  transform: scale(1.1);
+}
+</style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col relative overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
+
+<!-- Ambient Background Glow Accents -->
+<div class="ambient-glow bg-blue-500 top-[-100px] left-[-100px]"></div>
+<div class="ambient-glow bg-indigo-500 top-[30%] right-[-150px]"></div>
+<div class="ambient-glow bg-emerald-500 bottom-[-100px] left-[20%]"></div>
+
+<!-- ======================= HEADER ======================= -->
+<header class="sticky top-0 z-40 w-full border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl transition-colors duration-300">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    
+    <!-- Brand & University Logo -->
+    <div class="flex items-center gap-2 sm:gap-3 cursor-pointer" onclick="handleLogoClick()">
+      <!-- University Emblem / Logo -->
+      <div class="h-10 px-2.5 py-1 bg-white dark:bg-white/95 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-center shrink-0">
+        <img src="./adypu_logo.png" alt="Ajeenkya DY Patil University" class="h-8 w-auto object-contain">
+      </div>
+      <!-- Divider -->
+      <div class="h-8 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
+      <!-- Club Logo -->
+      <div class="h-10 w-10 rounded-xl bg-white dark:bg-slate-900 border border-yellow-300/60 dark:border-yellow-600/40 shadow-sm flex items-center justify-center shrink-0 p-1" title="QTest Club">
+        <img src="./club_logo.png" alt="QTest Club Logo" class="h-full w-auto object-contain drop-shadow-sm">
+      </div>
+      <!-- Divider -->
+      <div class="h-8 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
+      <div>
+        <div class="flex items-center gap-1.5">
+          <span class="font-black text-lg sm:text-xl tracking-tight bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 dark:from-yellow-400 dark:via-amber-300 dark:to-yellow-500 bg-clip-text text-transparent">QTest</span>
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 uppercase tracking-widest">Engine</span>
+        </div>
+        <p class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider hidden md:block">ADYPU Assessment Portal</p>
+      </div>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      
+      <!-- Audio Mute Toggle -->
+      <button id="soundToggle" onclick="toggleAudio()" class="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition transform active:scale-95 border border-slate-200/60 dark:border-slate-800" title="Toggle Sound Feedback">
+        <i id="soundIcon" class="fas fa-volume-up text-sm"></i>
+      </button>
+
+      <!-- Theme Switcher -->
+      <button id="themeToggle" onclick="toggleTheme()" class="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition transform active:scale-95 border border-slate-200/60 dark:border-slate-800" title="Toggle Dark/Light Mode">
+        <i id="themeIcon" class="fas fa-moon text-sm transition-transform duration-500"></i>
+      </button>
+
+      <!-- Firebase Connection Status Pill -->
+      <div id="firebaseStatusPill" title="Firebase Cloud Storage Status"
+           class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 transition-all duration-500 cursor-default select-none">
+        <span id="firebaseStatusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
+        <span id="firebaseStatusText" class="text-[10px] font-extrabold uppercase tracking-wider text-amber-500 dark:text-amber-400 whitespace-nowrap">Connecting…</span>
+        <i id="firebaseStatusIcon" class="fas fa-cloud text-[10px] text-amber-400"></i>
+      </div>
+
+      <!-- User Chip & Logout (Visible when logged in) -->
+      <div id="userBadge" class="hidden items-center gap-3 pl-2 border-l border-slate-200 dark:border-slate-800">
+        <div class="hidden md:flex flex-col text-right">
+          <span id="badgeName" class="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug">User</span>
+          <div class="flex items-center justify-end gap-1.5">
+            <span id="badgeRole" class="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400">STUDENT</span>
+            <span id="badgeExtra" class="text-[10px] text-slate-400 font-medium"></span>
+          </div>
+        </div>
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-md" id="userAvatar">
+          U
+        </div>
+        <button onclick="doLogout()" class="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 text-xs font-bold transition flex items-center gap-1.5 border border-red-200/60 dark:border-red-800/40">
+          <i class="fas fa-sign-out-alt"></i>
+          <span class="hidden sm:inline">Logout</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</header>
+
+<!-- ======================= MAIN CONTENT ======================= -->
+<main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 z-10">
+
+  <!-- ================= VIEW 1: LOGIN & HERO (WITH FULL-PAGE INTERACTIVE BACKGROUND) ================= -->
+  <div id="viewLogin" class="min-h-[86vh] relative rounded-3xl overflow-hidden flex items-center justify-center py-8 px-4 sm:px-8 border border-slate-200/50 dark:border-slate-800 shadow-2xl transition-all"
+       onmousemove="handleFullPageBgParallax(event)" onmouseleave="resetFullPageBgParallax()">
+    
+    <!-- FULL-PAGE INTERACTIVE BACKGROUND PHOTO LAYER -->
+    <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+      <!-- High-resolution Portrait as Full-Page Interactive Background -->
+      <img id="fullPageBgPortrait" src="./profile.png" alt="Gourav Soni Background"
+           class="w-full h-full object-cover object-top lg:object-right filter contrast-105 brightness-90 transform scale-105 transition-transform duration-200 ease-out will-change-transform">
+      
+      <!-- Multi-Stop Deep Gradient Scrims for High-Contrast Readability -->
+      <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-950/65 dark:from-slate-950 dark:via-slate-950/90 dark:to-slate-950/70"></div>
+      <div class="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/80 to-slate-950/40"></div>
+      
+      <!-- Dynamic Interactive Cursor Spotlight over the Background -->
+      <div id="fullPageSpotlight" class="absolute w-[600px] h-[600px] rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 bg-blue-500/20 blur-[120px] opacity-0 transition-opacity duration-300"></div>
+      
+      <!-- Ambient Geometric Tech Accent Grid -->
+      <div class="absolute inset-0 opacity-[0.04] bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:24px_24px]"></div>
+    </div>
+
+    <!-- FOREGROUND INTERACTIVE CONTENT ON TOP OF THE FULL BACKGROUND -->
+    <div class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center relative z-10 text-white">
+      
+      <!-- LEFT COLUMN: University Logo, Leadership Credentials & Platform Overview -->
+      <div class="lg:col-span-7 flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
+        
+        <!-- Official Brand Row: ADYPU + Club Logo -->
+        <div class="flex items-center gap-4 flex-wrap">
+          <!-- ADYPU Card -->
+          <div class="p-3 sm:p-3.5 rounded-2xl bg-white/95 shadow-2xl border border-white/60 shrink-0 interactive-card">
+            <img src="./adypu_logo.png" alt="Ajeenkya DY Patil University — The Innovation University" class="h-9 sm:h-11 w-auto object-contain">
+          </div>
+
+          <!-- Divider -->
+          <div class="h-12 w-px bg-white/20 hidden sm:block"></div>
+
+          <!-- Club Logo with golden glow ring -->
+          <div class="relative shrink-0 interactive-card group cursor-pointer">
+            <div class="absolute inset-0 rounded-full bg-yellow-400/30 blur-lg scale-110 group-hover:scale-125 transition-transform duration-500"></div>
+            <div class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/95 shadow-2xl border-2 border-yellow-400/70 flex items-center justify-center p-2.5">
+              <img src="./club_logo.png" alt="QTest Club — Brain & Q Logo" class="w-full h-full object-contain drop-shadow-md">
+            </div>
+          </div>
+
+          <!-- Club Name Tag -->
+          <div class="flex flex-col text-left">
+            <span class="text-[10px] font-extrabold uppercase tracking-[0.2em] text-yellow-400/80">Powered by</span>
+            <span class="text-base sm:text-lg font-black text-white leading-tight">QTest Club</span>
+            <span class="text-[10px] font-semibold text-slate-300">Intelligence × Technology</span>
+          </div>
+        </div>
+
+        <!-- Academic & Placement Engine Badge -->
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/30 backdrop-blur-md border border-blue-400/30 text-blue-300 text-xs font-black uppercase tracking-wider shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>Student Progression & Corporate Relations (SPCR)</span>
+        </div>
+
+        <!-- Headline -->
+        <div class="space-y-2">
+          <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-[1.12] drop-shadow-md">
+            Next-Gen Engineering 
+            <span class="bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">Assessment Platform</span>
+          </h1>
+          <p class="text-slate-200 text-sm sm:text-base max-w-xl font-normal leading-relaxed drop-shadow">
+            Standardized technical examination and placement testing engine with automated polyglot code execution and live proctoring.
+          </p>
+        </div>
+
+        <!-- Gourav Soni's Official Faculty & Leadership Card -->
+        <div class="w-full max-w-xl p-5 sm:p-6 rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/15 shadow-2xl space-y-4 text-left interactive-card">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-blue-500/30 text-blue-300 border border-blue-400/30">Leadership & Evaluation</span>
+              <h2 class="text-2xl sm:text-3xl font-black text-white mt-1 flex items-center gap-2">
+                <span>Gourav Soni</span>
+                <i class="fas fa-certificate text-blue-400 text-base" title="Verified Authority & Evaluator"></i>
+              </h2>
+              <p class="text-xs sm:text-sm font-bold text-blue-200 mt-0.5 leading-snug">
+                Head Technical Trainer and Corporate Relations Manager
+              </p>
+              <p class="text-xs font-semibold text-slate-300">
+                @Student Progression & Corporate Relations, ADYPU
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-xl text-white shadow-lg shrink-0">
+              <i class="fas fa-user-tie"></i>
+            </div>
+          </div>
+
+          <!-- Philosophy Tagline Quote -->
+          <div class="p-3 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-2.5">
+            <i class="fas fa-quote-left text-blue-400 text-xs shrink-0"></i>
+            <span class="text-xs sm:text-sm font-semibold italic text-blue-100 tracking-wide">
+              Transforming Complexity into Clarity
+            </span>
+          </div>
+
+          <!-- Interactive Expertise Chips -->
+          <div class="flex flex-wrap gap-2 text-xs font-bold pt-1">
+            <span onclick="AudioFX.click()" class="px-2.5 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-blue-200 transition cursor-pointer flex items-center gap-1.5">
+              <i class="fas fa-terminal text-blue-400"></i> Code Mentor
+            </span>
+            <span onclick="AudioFX.click()" class="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/30 text-purple-200 transition cursor-pointer flex items-center gap-1.5">
+              <i class="fas fa-compass text-purple-400"></i> Career Guide
+            </span>
+            <span onclick="AudioFX.click()" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-emerald-200 transition cursor-pointer flex items-center gap-1.5">
+              <i class="fas fa-laptop-code text-emerald-400"></i> Full Stack Developer
+            </span>
+            <span onclick="AudioFX.click()" class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 transition cursor-pointer flex items-center gap-1.5">
+              <i class="fas fa-video text-amber-400"></i> Content Creator
+            </span>
+          </div>
+        </div>
+
+        <!-- Quick Platform Metrics -->
+        <div class="grid grid-cols-3 gap-3 w-full max-w-xl text-center">
+          <div class="p-3 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-sm">
+            <span class="block text-lg sm:text-xl font-black text-blue-400">100%</span>
+            <span class="block text-[10px] font-bold text-slate-300 uppercase">Tamper-Proof</span>
+          </div>
+          <div class="p-3 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-sm">
+            <span class="block text-lg sm:text-xl font-black text-purple-400">4+</span>
+            <span class="block text-[10px] font-bold text-slate-300 uppercase">Languages</span>
+          </div>
+          <div class="p-3 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-sm">
+            <span class="block text-lg sm:text-xl font-black text-emerald-400">&lt;100ms</span>
+            <span class="block text-[10px] font-bold text-slate-300 uppercase">Live Radar</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Sign-In Card (Glassmorphic) -->
+      <div class="lg:col-span-5 w-full max-w-md mx-auto">
+        
+        <!-- Welcome Heading -->
+        <div class="text-center lg:text-left mb-5">
+          <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow">Portal Access</h2>
+          <p class="text-slate-300 text-sm mt-1">Sign in with your institutional credentials</p>
+        </div>
+
+        <!-- Login Card with Glassmorphic Backdrop -->
+        <div class="p-6 sm:p-8 rounded-3xl bg-slate-900/80 backdrop-blur-2xl border border-white/15 shadow-2xl text-slate-100">
+          <form onsubmit="handleLogin(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">User ID / Roll No</label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                  <i class="fas fa-user text-sm"></i>
+                </span>
+                <input type="text" id="loginId" required placeholder="e.g. STDNT0001, GORAV1990"
+                  class="w-full pl-10 pr-4 py-3 rounded-xl border border-white/20 bg-black/40 text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Password</label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                  <i class="fas fa-lock text-sm"></i>
+                </span>
+                <input type="password" id="loginPwd" required placeholder="Institutional password"
+                  class="w-full pl-10 pr-10 py-3 rounded-xl border border-white/20 bg-black/40 text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                <button type="button" onclick="togglePwdVisibility('loginPwd', this)" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">
+                  <i class="far fa-eye text-sm"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Error message -->
+            <div id="loginError" class="hidden p-3 rounded-xl bg-red-950/70 border border-red-500/50 text-red-300 text-xs font-bold flex items-center gap-2 animate-shake">
+              <i class="fas fa-circle-exclamation text-sm text-red-400"></i>
+              <span>Invalid User ID or Password. Try again!</span>
+            </div>
+
+            <button type="submit" class="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition transform hover:-translate-y-0.5 active:scale-98 flex items-center justify-center gap-2">
+              <span>Enter Dashboard</span>
+              <i class="fas fa-arrow-right text-sm"></i>
+            </button>
+          </form>
+
+          <!-- Quick Demo Switcher -->
+          <div class="mt-6 pt-5 border-t border-white/10">
+            <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 text-center mb-3">Quick Demo Logins (Click to autofill)</p>
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="autofillLogin('ADMIN2009', '1234')" class="p-2 rounded-xl border border-purple-400/30 bg-purple-950/40 hover:bg-purple-900/60 text-left transition transform hover:scale-102">
+                <span class="block text-[10px] font-black text-purple-400 uppercase">ADMIN</span>
+                <span class="block text-xs font-mono font-bold text-slate-200 truncate">ADMIN2009</span>
+              </button>
+              <button onclick="autofillLogin('GORAV1990', '1234')" class="p-2 rounded-xl border border-blue-400/30 bg-blue-950/40 hover:bg-blue-900/60 text-left transition transform hover:scale-102">
+                <span class="block text-[10px] font-black text-blue-400 uppercase truncate">TEACHER (Gourav)</span>
+                <span class="block text-xs font-mono font-bold text-slate-200 truncate">GORAV1990</span>
+              </button>
+              <button onclick="autofillLogin('STDNT0001', '1234')" class="p-2 rounded-xl border border-emerald-400/30 bg-emerald-950/40 hover:bg-emerald-900/60 text-left transition transform hover:scale-102">
+                <span class="block text-[10px] font-black text-emerald-400 uppercase">STUDENT</span>
+                <span class="block text-xs font-mono font-bold text-slate-200 truncate">STDNT0001</span>
+              </button>
+            </div>
+            <p class="text-[11px] text-center text-slate-400 mt-2 font-medium">Default password: <strong class="text-white">1234</strong></p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= VIEW 2: ADMIN PORTAL ================= -->
+  <div id="viewAdmin" class="hidden space-y-6">
+    
+    <!-- Top Bar with Stats -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <h2 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">System Control Center</h2>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Institutional user registry, test configurations & live network</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="openModal('modalNewUser')" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-blue-500/20 transition transform hover:-translate-y-0.5 active:scale-98 flex items-center gap-2">
+          <i class="fas fa-user-plus text-xs"></i>
+          <span>Add New User</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Metrics Cards Grid -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" id="adminMetricsGrid">
+      <!-- Injected dynamically via JS -->
+    </div>
+
+    <!-- Firebase Cloud Status Card -->
+    <div id="adminFirebaseCard" class="glass-panel rounded-2xl p-4 flex items-center gap-4 border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-500">
+      <!-- Icon -->
+      <div id="fbCardIconWrap" class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 bg-amber-100 dark:bg-amber-950/40 text-amber-500 dark:text-amber-400 transition-all duration-500">
+        <i class="fas fa-cloud"></i>
+      </div>
+      <!-- Text block -->
+      <div class="flex-1 min-w-0">
+        <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500">Firebase Cloud Storage</p>
+        <p id="fbCardTitle" class="text-base font-black text-amber-500 dark:text-amber-400 leading-tight transition-colors duration-500">Connecting to Firebase…</p>
+        <p id="fbCardSub" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Waiting for cloud handshake</p>
+      </div>
+      <!-- Status dot cluster -->
+      <div class="flex flex-col items-end gap-1 shrink-0">
+        <span id="fbCardDot" class="w-3 h-3 rounded-full bg-amber-400 animate-pulse block"></span>
+        <span id="fbCardLabel" class="text-[10px] font-black uppercase tracking-wider text-amber-500 dark:text-amber-400">Pending</span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800/80 w-fit max-w-full overflow-x-auto">
+      <button onclick="switchAdminTab('users')" id="atab_users" class="tab-pill active px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+        <i class="fas fa-users-gear mr-1.5"></i> Directory
+      </button>
+      <button onclick="switchAdminTab('tests')" id="atab_tests" class="tab-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+        <i class="fas fa-file-pen mr-1.5"></i> Assessments
+      </button>
+      <button onclick="switchAdminTab('live')" id="atab_live" class="tab-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap flex items-center">
+        <span class="w-2 h-2 rounded-full bg-red-500 mr-1.5 animate-ping"></span>
+        <span>Live Radar</span>
+      </button>
+      <button onclick="switchAdminTab('results')" id="atab_results" class="tab-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+        <i class="fas fa-chart-column mr-1.5"></i> Submissions
+      </button>
+    </div>
+
+    <!-- Tab Content 1: User Directory -->
+    <div id="adminTab_users" class="space-y-6">
+      
+      <!-- Search & Filters -->
+      <div class="glass-panel p-4 rounded-2xl flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <div class="relative flex-1">
+          <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <input type="text" id="adminUserSearch" oninput="renderAdminUsers()" placeholder="Search users by name, ID, department..."
+            class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="adminBranchFilter" onchange="renderAdminUsers()" class="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold">
+            <option value="">All Branches</option>
+            <option value="CSE">CSE</option>
+            <option value="AI-DS">AI-DS</option>
+            <option value="ECE">ECE</option>
+            <option value="CIVIL">CIVIL</option>
+            <option value="Mechanical">Mechanical</option>
+          </select>
+          <select id="adminYearFilter" onchange="renderAdminUsers()" class="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold">
+            <option value="">All Years</option>
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Separate User Sections -->
+      <!-- Admins -->
+      <div class="glass-panel rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800">
+        <div class="px-5 py-3.5 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2 font-bold text-purple-700 dark:text-purple-300 text-sm">
+            <i class="fas fa-shield-cat"></i>
+            <span>Institutional Administrators</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300" id="count_admins">0</span>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="bg-slate-50/50 dark:bg-slate-900/50 text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+              <tr>
+                <th class="px-5 py-3">Login ID</th>
+                <th class="px-5 py-3">Full Name</th>
+                <th class="px-5 py-3">Role / Designation</th>
+                <th class="px-5 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbl_admins" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Teachers -->
+      <div class="glass-panel rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800">
+        <div class="px-5 py-3.5 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2 font-bold text-blue-700 dark:text-blue-300 text-sm">
+            <i class="fas fa-chalkboard-user"></i>
+            <span>Department Faculty & Evaluators</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300" id="count_teachers">0</span>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="bg-slate-50/50 dark:bg-slate-900/50 text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+              <tr>
+                <th class="px-5 py-3">Login ID</th>
+                <th class="px-5 py-3">Faculty Name</th>
+                <th class="px-5 py-3">Specialization / Dept</th>
+                <th class="px-5 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbl_teachers" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Students -->
+      <div class="glass-panel rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800">
+        <div class="px-5 py-3.5 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300 text-sm">
+            <i class="fas fa-user-graduate"></i>
+            <span>Enrolled Students</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300" id="count_students">0</span>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="bg-slate-50/50 dark:bg-slate-900/50 text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+              <tr>
+                <th class="px-5 py-3">Student ID</th>
+                <th class="px-5 py-3">Name</th>
+                <th class="px-5 py-3">Year / Batch</th>
+                <th class="px-5 py-3">Branch</th>
+                <th class="px-5 py-3">Attendance</th>
+                <th class="px-5 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbl_students" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Tab Content 2: All Tests -->
+    <div id="adminTab_tests" class="hidden space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="adminTestsGrid"></div>
+    </div>
+
+    <!-- Tab Content 3: Live Radar -->
+    <div id="adminTab_live" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500 live-radar"></span>
+          <span>Active Monitored Proctor Sessions</span>
+        </h3>
+        <span class="text-xs text-slate-400 font-mono" id="liveRadarTimestamp">Live syncing</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="adminLiveGrid"></div>
+    </div>
+
+    <!-- Tab Content 4: Submissions -->
+    <div id="adminTab_results" class="hidden space-y-3" id="adminResultsList"></div>
+
+  </div>
+
+  <!-- ================= VIEW 3: TEACHER PORTAL ================= -->
+  <div id="viewTeacher" class="hidden space-y-6">
+    
+    <!-- Faculty Hero Banner -->
+    <div class="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-xl shadow-blue-500/20">
+      <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <span class="text-xs font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/20 backdrop-blur">Faculty Console</span>
+          <h2 class="text-2xl sm:text-3xl font-black mt-2 leading-tight" id="teacherGreeting">Welcome, Professor</h2>
+          <p class="text-blue-100 text-sm mt-1" id="teacherDeptText">Computer Science & Engineering</p>
+        </div>
+        <button onclick="openCreateTestModal()" class="px-5 py-3 rounded-2xl bg-white text-blue-600 hover:bg-blue-50 font-bold text-sm transition transform hover:-translate-y-0.5 active:scale-95 shadow-lg flex items-center gap-2">
+          <i class="fas fa-plus"></i>
+          <span>Create New Assessment</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Faculty Tabs -->
+    <div class="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800/80 w-fit max-w-full overflow-x-auto">
+      <button onclick="switchTeacherTab('tests')" id="ttab_tests" class="tab-pill active px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+        <i class="fas fa-list-check mr-1.5"></i> My Assessments
+      </button>
+      <button onclick="switchTeacherTab('live')" id="ttab_live" class="tab-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap flex items-center">
+        <span class="w-2 h-2 rounded-full bg-red-500 mr-1.5 animate-ping"></span>
+        <span>Live Proctoring</span>
+      </button>
+      <button onclick="switchTeacherTab('students')" id="ttab_students" class="tab-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+        <i class="fas fa-users mr-1.5"></i> Students & Eligibility
+      </button>
+      <button onclick="switchTeacherTab('results')" id="ttab_results" class="tab-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+        <i class="fas fa-square-poll-vertical mr-1.5"></i> Graded Results
+      </button>
+    </div>
+
+    <!-- Faculty Tests -->
+    <div id="teacherTab_tests" class="space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="teacherTestsGrid"></div>
+    </div>
+
+    <!-- Faculty Live Proctoring -->
+    <div id="teacherTab_live" class="hidden space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="teacherLiveGrid"></div>
+    </div>
+
+    <!-- Faculty Student List -->
+    <div id="teacherTab_students" class="hidden glass-panel rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm whitespace-nowrap">
+          <thead class="bg-slate-50/50 dark:bg-slate-900/50 text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+            <tr>
+              <th class="px-5 py-3">Student</th>
+              <th class="px-5 py-3">Year / Branch</th>
+              <th class="px-5 py-3">Attendance</th>
+              <th class="px-5 py-3">Assessments Taken</th>
+            </tr>
+          </thead>
+          <tbody id="tbl_teacher_students" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Faculty Results List -->
+    <div id="teacherTab_results" class="hidden space-y-3" id="teacherResultsList"></div>
+
+  </div>
+
+  <!-- ================= VIEW 4: STUDENT PORTAL ================= -->
+  <div id="viewStudent" class="hidden space-y-6">
+    
+    <!-- Student Header Banner -->
+    <div class="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-700 text-white shadow-xl shadow-blue-500/20">
+      <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <span class="text-[11px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur">STUDENT DASHBOARD</span>
+          <h2 class="text-3xl font-black mt-2 leading-tight">Welcome back, <span id="studentWelcomeName">Student</span>!</h2>
+          <div class="flex flex-wrap items-center gap-2 mt-2 text-xs text-blue-100">
+            <span class="px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur font-semibold" id="studentDeptBadge">CSE</span>
+            <span class="px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur font-semibold" id="studentYearBadge">Year 1</span>
+            <span class="px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur font-semibold" id="studentAttBadge">Att: 85%</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="px-4 py-3 rounded-2xl bg-white/10 backdrop-blur border border-white/20 text-center min-w-[100px]">
+            <span class="block text-[10px] font-extrabold uppercase tracking-wider text-blue-200">Completed</span>
+            <span class="block text-2xl font-black" id="studentCompletedCount">0</span>
+          </div>
+          <div class="px-4 py-3 rounded-2xl bg-white/10 backdrop-blur border border-white/20 text-center min-w-[100px]">
+            <span class="block text-[10px] font-extrabold uppercase tracking-wider text-blue-200">Avg Accuracy</span>
+            <span class="block text-2xl font-black" id="studentAvgAcc">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Assessments Heading -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <i class="fas fa-layer-group text-blue-500"></i>
+          <span>Available Assessments</span>
+        </h3>
+        <p class="text-xs text-slate-500">Assessments activated by faculty for your year</p>
+      </div>
+    </div>
+
+    <!-- Student Tests Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="studentTestsGrid"></div>
+
+  </div>
+
+</main>
+
+<!-- ======================= FULLSCREEN TEST ENVIRONMENT ======================= -->
+<div id="testEnvironment" class="hidden fixed inset-0 z-50 bg-slate-100 dark:bg-slate-950 flex flex-col transition-colors duration-300 select-none">
+  
+  <!-- Environment Top Bar -->
+  <div class="h-16 px-4 sm:px-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0 shadow-sm">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+        <i class="fas fa-graduation-cap text-base"></i>
+      </div>
+      <div class="min-w-0">
+        <h4 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate" id="envTestTitle">Title</h4>
+        <div class="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+          <span id="envSubjectBadge" class="uppercase text-blue-600 dark:text-blue-400">Computer Science</span>
+          <span>•</span>
+          <span id="envViolationCount" class="text-red-500 font-extrabold"><i class="fas fa-triangle-exclamation mr-1"></i>0 Violations</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timer & Controls -->
+    <div class="flex items-center gap-3 shrink-0">
+      <!-- Live Time Left -->
+      <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+        <i class="far fa-clock text-slate-500 text-xs"></i>
+        <span id="envTimerDisplay" class="font-mono text-base sm:text-lg font-black text-slate-800 dark:text-slate-100">00:00</span>
+      </div>
+      <!-- Submit Button -->
+      <button onclick="confirmSubmitTest()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-500/20 transition transform active:scale-95 flex items-center gap-1.5">
+        <i class="fas fa-check-double"></i>
+        <span>Finish & Submit</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress Bar Line -->
+  <div class="w-full bg-slate-200 dark:bg-slate-800 h-1">
+    <div id="envProgressLine" class="bg-gradient-to-r from-blue-600 to-indigo-600 h-1 transition-all duration-300" style="width: 0%"></div>
+  </div>
+
+  <!-- Environment Body: Sidebar + Main Stage -->
+  <div class="flex-grow flex flex-col md:flex-row overflow-hidden">
+    
+    <!-- Question Navigator Drawer -->
+    <div class="w-full md:w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 order-2 md:order-1 h-36 md:h-auto">
+      <div class="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+        <span>Question Palette</span>
+        <span id="envProgressFraction" class="text-blue-600 dark:text-blue-400 font-mono">0 / 0</span>
+      </div>
+
+      <!-- Palette Grid -->
+      <div class="p-3.5 overflow-y-auto flex-grow grid grid-cols-6 sm:grid-cols-8 md:grid-cols-5 gap-2 content-start" id="envPaletteGrid"></div>
+
+      <!-- Palette Legend -->
+      <div class="p-3 border-t border-slate-200 dark:border-slate-800 hidden md:grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-blue-600"></div> Current</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-emerald-500"></div> Answered</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-purple-500"></div> Marked Review</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-slate-200 dark:bg-slate-700"></div> Unvisited</div>
+      </div>
+    </div>
+
+    <!-- Question Interaction Stage -->
+    <div class="flex-grow flex flex-col overflow-hidden bg-slate-50/50 dark:bg-slate-950/50 order-1 md:order-2 relative">
+      <div class="flex-grow overflow-y-auto p-4 sm:p-8" id="envQuestionStage">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Bottom Navigation Controller -->
+      <div class="p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+        <button id="btnPrevQ" onclick="navigateQ(-1)" class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-30 disabled:cursor-not-allowed">
+          <i class="fas fa-chevron-left mr-1"></i> Previous
+        </button>
+
+        <div class="flex items-center gap-2">
+          <button id="btnMarkReview" onclick="toggleMarkReview()" class="px-3 py-2 rounded-xl border border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-400 text-xs sm:text-sm font-bold hover:bg-purple-50 dark:hover:bg-purple-950/40 transition flex items-center gap-1.5">
+            <i class="far fa-bookmark"></i>
+            <span class="hidden sm:inline">Mark for Review</span>
+          </button>
+        </div>
+
+        <button id="btnNextQ" onclick="navigateQ(1)" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition disabled:opacity-30 disabled:cursor-not-allowed">
+          Next <i class="fas fa-chevron-right ml-1"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ======================= MODALS ======================= -->
+
+<!-- 1. TAB SHIFT CRITICAL WARNING MODAL -->
+<div id="modalTabShift" class="modal-overlay hidden fixed inset-0 z-[100] flex items-center justify-center p-4">
+  <div class="glass-panel w-full max-w-md p-6 rounded-3xl border-2 border-red-500 shadow-2xl text-center space-y-4 animate-bounce-short">
+    <div class="w-16 h-16 rounded-full bg-red-100 dark:bg-red-950 text-red-600 flex items-center justify-center mx-auto text-2xl shadow-inner">
+      <i class="fas fa-triangle-exclamation"></i>
+    </div>
+    <div>
+      <h3 class="text-xl font-black text-red-600 tracking-tight">ANTI-CHEATING ALERT</h3>
+      <p class="text-sm font-bold text-slate-700 dark:text-slate-200 mt-1">Window / Tab Shift Detected!</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+        Leaving the test environment is logged. <strong class="text-red-500">Your faculty and admin have received this violation in real-time.</strong>
+      </p>
+    </div>
+    <div class="p-3 rounded-2xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 font-mono text-sm font-black text-red-600">
+      Recorded Violations: <span id="modalViolationCounter">1</span>
+    </div>
+    <button onclick="dismissTabShiftModal()" class="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition transform active:scale-95 uppercase tracking-wider">
+      I Understand & Return To Test
+    </button>
+  </div>
+</div>
+
+<!-- 2. RESULT BREAKDOWN CARD MODAL -->
+<div id="modalResultCard" class="modal-overlay hidden fixed inset-0 z-[90] flex items-center justify-center p-4">
+  <div class="glass-panel w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800">
+    <div class="p-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white relative">
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/20">Assessment Report</span>
+          <h3 class="text-2xl font-black mt-1" id="resModalTitle">Test Completed!</h3>
+          <p class="text-xs text-blue-100" id="resModalSubTitle">Performance Summary</p>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl">
+          <i class="fas fa-award"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Body -->
+    <div class="p-6 overflow-y-auto space-y-6">
+      
+      <!-- Metrics Strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center">
+          <span class="block text-[10px] font-bold text-slate-400 uppercase">Score</span>
+          <span class="block text-2xl font-black text-blue-600 dark:text-blue-400" id="resScore">0/0</span>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center">
+          <span class="block text-[10px] font-bold text-slate-400 uppercase">Accuracy</span>
+          <span class="block text-2xl font-black text-emerald-600 dark:text-emerald-400" id="resAccuracy">0%</span>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center">
+          <span class="block text-[10px] font-bold text-slate-400 uppercase">Duration</span>
+          <span class="block text-xl font-black text-slate-700 dark:text-slate-200" id="resDuration">0s</span>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center">
+          <span class="block text-[10px] font-bold text-slate-400 uppercase">Tab Shifts</span>
+          <span class="block text-2xl font-black" id="resTabShifts">0</span>
+        </div>
+      </div>
+
+      <!-- Question Timing & Accuracy Breakdown -->
+      <div>
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+          <i class="fas fa-stopwatch text-blue-500"></i>
+          <span>Per-Question Timing & Evaluation</span>
+        </h4>
+        <div class="space-y-2" id="resQuestionsBreakdown"></div>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-end">
+      <button onclick="closeResultModal()" class="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-sm transition">
+        Return to Portal
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 3. ASSIGN STUDENTS MODAL (WITH QUICK FILTERS) -->
+<div id="modalAssign" class="modal-overlay hidden fixed inset-0 z-[80] flex items-center justify-center p-4">
+  <div class="glass-panel w-full max-w-lg max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800">
+    <div class="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-black text-slate-900 dark:text-white">Assign Assessment</h3>
+        <p class="text-xs text-slate-500" id="assignAssessmentTitle">Title</p>
+      </div>
+      <button onclick="closeModal('modalAssign')" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 flex items-center justify-center">
+        <i class="fas fa-times text-xs"></i>
+      </button>
+    </div>
+
+    <!-- Quick action filter bar -->
+    <div class="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+      <div class="flex gap-2">
+        <button onclick="selectAllStudents(true)" class="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 font-bold hover:bg-blue-100">Select All</button>
+        <button onclick="selectAllStudents(false)" class="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-300">Deselect All</button>
+      </div>
+      <span class="text-slate-400 font-mono" id="assignedCounter">0 selected</span>
+    </div>
+
+    <div class="p-4 overflow-y-auto space-y-2 flex-grow" id="assignStudentList"></div>
+
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+      <button onclick="closeModal('modalAssign')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+      <button onclick="saveStudentAssignments()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md">Save Assignments</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4. NEW USER MODAL (FORMULA CREDENTIALS + OVERRIDE) -->
+<div id="modalNewUser" class="modal-overlay hidden fixed inset-0 z-[80] flex items-center justify-center p-4">
+  <div class="glass-panel w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800">
+    <div class="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <h3 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+        <i class="fas fa-user-plus text-blue-500"></i>
+        <span>Register New User Profile</span>
+      </h3>
+      <button onclick="closeModal('modalNewUser')" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 flex items-center justify-center">
+        <i class="fas fa-times text-xs"></i>
+      </button>
+    </div>
+
+    <div class="p-6 overflow-y-auto space-y-4 flex-grow">
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Account Role</label>
+        <select id="nu_role" onchange="toggleNuFields()" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold">
+          <option value="student">Student</option>
+          <option value="teacher">Teacher / Faculty</option>
+          <option value="admin">Administrator</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">First Name *</label>
+          <input type="text" id="nu_first" oninput="calculateCredsPreview()" placeholder="Ansh" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Middle Name</label>
+          <input type="text" id="nu_mid" placeholder="Rahul" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Last Name *</label>
+          <input type="text" id="nu_last" oninput="calculateCredsPreview()" placeholder="Patil" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Date of Birth (DOB) *</label>
+          <input type="date" id="nu_dob" oninput="calculateCredsPreview()" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">URN Number *</label>
+          <input type="text" id="nu_urn" oninput="calculateCredsPreview()" placeholder="E26B00F0123" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-mono">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="nu_student_fields">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Year of Degree</label>
+          <select id="nu_year" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold">
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Branch / Dept</label>
+          <select id="nu_branch" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold">
+            <option value="CSE">CSE</option>
+            <option value="AI-DS">AI-DS</option>
+            <option value="ECE">ECE</option>
+            <option value="CIVIL">CIVIL</option>
+            <option value="Mechanical">Mechanical</option>
+            <option value="Stf">Stf</option>
+            <option value="Spr">Spr</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Generated credentials card with override option -->
+      <div class="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-extrabold uppercase text-blue-700 dark:text-blue-300">Generated Credentials (Admin Editable)</span>
+          <span class="text-[10px] text-slate-400">First 5 chars(First+Last) + DDMM</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Calculated User ID</label>
+            <input type="text" id="nu_custom_id" class="w-full p-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 font-mono font-bold text-sm">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Password (Q-URN)</label>
+            <input type="text" id="nu_custom_pwd" class="w-full p-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 font-mono font-bold text-sm">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+      <button onclick="closeModal('modalNewUser')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+      <button onclick="saveNewUser()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- 5. EDIT USER MODAL -->
+<div id="modalEditUser" class="modal-overlay hidden fixed inset-0 z-[80] flex items-center justify-center p-4">
+  <div class="glass-panel w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800">
+    <div class="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <h3 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+        <i class="fas fa-user-pen text-blue-500"></i>
+        <span>Modify User Profile</span>
+      </h3>
+      <button onclick="closeModal('modalEditUser')" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 flex items-center justify-center">
+        <i class="fas fa-times text-xs"></i>
+      </button>
+    </div>
+    <div class="p-6 space-y-3">
+      <input type="hidden" id="eu_orig_id">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">User ID (Login)</label>
+          <input type="text" id="eu_id" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Password</label>
+          <input type="text" id="eu_pwd" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-sm">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Full Name</label>
+        <input type="text" id="eu_name" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+      </div>
+      <div id="eu_dept_field">
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Department / Branch</label>
+        <input type="text" id="eu_dept" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+      </div>
+      <div id="eu_student_fields" class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Year</label>
+          <select id="eu_year" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Attendance %</label>
+          <input type="number" id="eu_att" min="0" max="100" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        </div>
+      </div>
+    </div>
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+      <button onclick="closeModal('modalEditUser')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+      <button onclick="saveEditedUser()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- 6. CREATE / EDIT ASSESSMENT MODAL -->
+<div id="modalCreateTest" class="modal-overlay hidden fixed inset-0 z-[80] flex items-center justify-center p-4">
+  <div class="glass-panel w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800">
+    <div class="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <h3 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+        <i class="fas fa-file-signature text-blue-500"></i>
+        <span id="ctModalHeading">Configure Assessment</span>
+      </h3>
+      <button onclick="closeModal('modalCreateTest')" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 flex items-center justify-center">
+        <i class="fas fa-times text-xs"></i>
+      </button>
+    </div>
+
+    <div class="p-6 overflow-y-auto space-y-5 flex-grow">
+      <input type="hidden" id="ct_id">
+      
+      <!-- General Meta Parameters -->
+      <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Assessment Title *</label>
+          <input type="text" id="ct_title" placeholder="e.g. Object Oriented Programming with Java" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Subject / Domain</label>
+          <input type="text" id="ct_subj" placeholder="e.g. Java / AI-ML" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Target Engineering Year</label>
+          <select id="ct_year" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold">
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Duration (Minutes)</label>
+          <input type="number" id="ct_duration" value="30" min="1" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Max Allowed Attempts</label>
+          <input type="number" id="ct_attempts" value="1" min="1" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Marks per Correct (+)</label>
+          <input type="number" id="ct_pos" value="4" min="1" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold text-emerald-600">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Negative Marking (-)</label>
+          <input type="number" id="ct_neg" value="1" min="0" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold text-red-500">
+        </div>
+      </div>
+
+      <!-- Question Builder Controls -->
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-2">
+          <i class="fas fa-layer-group text-blue-500"></i>
+          <span>Question Bank</span>
+        </h4>
+        <div class="flex gap-2">
+          <button type="button" onclick="appendNewQuestion('mcq')" class="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-bold hover:bg-indigo-100 transition flex items-center gap-1">
+            <i class="fas fa-list-check"></i> Add MCQ
+          </button>
+          <button type="button" onclick="appendNewQuestion('code')" class="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-xs font-bold hover:bg-emerald-100 transition flex items-center gap-1">
+            <i class="fas fa-code"></i> Add Coding Challenge
+          </button>
+        </div>
+      </div>
+
+      <!-- Questions List Container -->
+      <div id="ctQuestionsContainer" class="space-y-4"></div>
+    </div>
+
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+      <span class="text-xs text-slate-400 italic">Saved as Inactive. Activate anytime from dashboard.</span>
+      <div class="flex gap-2">
+        <button onclick="closeModal('modalCreateTest')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200">Cancel</button>
+        <button onclick="saveConfiguredTest()" class="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md">Save Assessment</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= AUDIO ENGINE & SCRIPTS ======================= -->
+<script>
+// Web Audio API Synthesizer for modern micro-interactions
+const AudioFX = {
+  ctx: null,
+  muted: false,
+  init() {
+    if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  },
+  playTone(freq, type = 'sine', duration = 0.1, gainVal = 0.08) {
+    if (this.muted) return;
+    try {
+      this.init();
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + duration);
+    } catch (e) {}
+  },
+  click() { this.playTone(600, 'sine', 0.06, 0.04); },
+  success() {
+    this.playTone(523.25, 'triangle', 0.12, 0.06);
+    setTimeout(() => this.playTone(659.25, 'triangle', 0.15, 0.06), 80);
+    setTimeout(() => this.playTone(783.99, 'triangle', 0.25, 0.07), 160);
+  },
+  alert() {
+    this.playTone(880, 'sawtooth', 0.2, 0.1);
+    setTimeout(() => this.playTone(440, 'sawtooth', 0.3, 0.1), 150);
+  }
+};
+
+function toggleAudio() {
+  AudioFX.muted = !AudioFX.muted;
+  const icon = document.getElementById('soundIcon');
+  if (AudioFX.muted) {
+    icon.className = 'fas fa-volume-xmark text-sm text-red-500';
+  } else {
+    icon.className = 'fas fa-volume-up text-sm text-slate-600 dark:text-slate-300';
+    AudioFX.click();
+  }
+}
+
+// Full-Page Interactive Parallax for Gourav Soni Background
+function handleFullPageBgParallax(e) {
+  const container = document.getElementById('viewLogin');
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+
+  const moveX = ((x - centerX) / centerX) * -18;
+  const moveY = ((y - centerY) / centerY) * -18;
+
+  const bgImg = document.getElementById('fullPageBgPortrait');
+  if (bgImg) {
+    bgImg.style.transform = `scale(1.06) translate(${moveX}px, ${moveY}px)`;
+  }
+
+  const spotlight = document.getElementById('fullPageSpotlight');
+  if (spotlight) {
+    spotlight.style.left = `${x}px`;
+    spotlight.style.top = `${y}px`;
+    spotlight.style.opacity = '1';
+  }
+}
+
+function resetFullPageBgParallax() {
+  const bgImg = document.getElementById('fullPageBgPortrait');
+  if (bgImg) {
+    bgImg.style.transform = 'scale(1.05) translate(0px, 0px)';
+  }
+  const spotlight = document.getElementById('fullPageSpotlight');
+  if (spotlight) {
+    spotlight.style.opacity = '0';
+  }
+}
+
+// Database Setup & Default Fixtures
+const DEFAULT_DATABASE = {
+  users: {
+    'ADMIN2009': { role: 'admin', pwd: '1234', name: 'Super Admin', visible: true },
+    'GORAV1990': { role: 'teacher', pwd: '1234', name: 'Gourav Soni', dept: 'SPCR, ADYPU', visible: true },
+    'ANSHI2005': { role: 'teacher', pwd: '1234', name: 'Anshi Patel', dept: 'Electrical Engineering', visible: true },
+    'STDNT0001': { role: 'student', pwd: '1234', name: 'Alice Smith', year: 1, dept: 'CSE', attendance: 85, visible: true },
+    'STDNT0002': { role: 'student', pwd: '1234', name: 'Bob Jones', year: 1, dept: 'CSE', attendance: 60, visible: true },
+    'STDNT0003': { role: 'student', pwd: '1234', name: 'Charlie Brown', year: 2, dept: 'ECE', attendance: 92, visible: true }
+  },
+  tests: [
+    {
+      id: 't1',
+      title: 'Data Structures & Algorithms',
+      subject: 'Computer Science',
+      year: 1,
+      duration: 2,
+      maxAttempts: 2,
+      posMarks: 4,
+      negMarks: 1,
+      isActive: true,
+      createdBy: 'GORAV1990',
+      assignedTo: ['STDNT0001', 'STDNT0002'],
+      questions: [
+        { type: 'mcq', q: 'Which data structure operates strictly under LIFO (Last In First Out)?', opts: ['Queue', 'Stack', 'Linked List', 'Binary Tree'], ans: 1 },
+        { type: 'mcq', q: 'What is the average time complexity to search an element in a Hash Table?', opts: ['O(1)', 'O(n)', 'O(log n)', 'O(n log n)'], ans: 0 },
+        { type: 'code', lang: 'javascript', q: 'Write a JavaScript function to reverse a string and return it.', starter: 'function reverseString(str) {\n    // your code here\n    return str.split("").reverse().join("");\n}\n\nconsole.log(reverseString("QTestEngine"));' }
+      ]
+    },
+    {
+      id: 't2',
+      title: 'Intro to Java AI & ML Foundations',
+      subject: 'AI-DS',
+      year: 1,
+      duration: 15,
+      maxAttempts: 1,
+      posMarks: 10,
+      negMarks: 0,
+      isActive: true,
+      createdBy: 'GORAV1990',
+      assignedTo: ['STDNT0001'],
+      questions: [
+        { type: 'code', lang: 'java', q: 'Complete the Main class to print "QTest AI Engine Online" to standard output.', starter: 'public class Main {\n    public static void main(String[] args) {\n        // Complete below\n        System.out.println("QTest AI Engine Online");\n    }\n}' }
+      ]
+    }
+  ],
+  submissions: [],
+  activeSessions: {}
+};
+
+let DB = (() => {
+  try {
+    const raw = localStorage.getItem('qtest_db_v5');
+    return raw ? JSON.parse(raw) : DEFAULT_DATABASE;
+  } catch (e) {
+    return DEFAULT_DATABASE;
+  }
+})();
+
+function saveDB() {
+  try {
+    localStorage.setItem('qtest_db_v5', JSON.stringify(DB));
+  } catch (e) {}
+}
+
+// Live Cross-Tab Synchronization
+window.addEventListener('storage', (e) => {
+  if (e.key === 'qtest_db_v5' && e.newValue) {
+    try {
+      DB = JSON.parse(e.newValue);
+      if (currentUser) refreshCurrentPortal();
+    } catch (err) {}
+  }
+});
+
+// Current User State
+let currentUser = null;
+let currentActiveTest = null;
+let testSession = null;
+let editingTestId = null;
+let assigningTestId = null;
+
+// Theme Controller
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('qtest_theme', isDark ? 'dark' : 'light');
+  updateThemeIcon(isDark);
+  AudioFX.click();
+}
+function updateThemeIcon(isDark) {
+  const icon = document.getElementById('themeIcon');
+  icon.className = isDark ? 'fas fa-sun text-sm text-yellow-400' : 'fas fa-moon text-sm text-slate-600';
+}
+// Init theme
+if (localStorage.getItem('qtest_theme') === 'dark' || (!('qtest_theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+  document.documentElement.classList.add('dark');
+  updateThemeIcon(true);
+} else {
+  document.documentElement.classList.remove('dark');
+  updateThemeIcon(false);
+}
+
+// Auth Handlers
+function togglePwdVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const isPwd = input.type === 'password';
+  input.type = isPwd ? 'text' : 'password';
+  btn.innerHTML = isPwd ? '<i class="far fa-eye-slash text-sm"></i>' : '<i class="far fa-eye text-sm"></i>';
+}
+
+function autofillLogin(id, pwd) {
+  document.getElementById('loginId').value = id;
+  document.getElementById('loginPwd').value = pwd;
+  AudioFX.click();
+}
+
+function handleLogin(e) {
+  e.preventDefault();
+  const id = document.getElementById('loginId').value.trim();
+  const pwd = document.getElementById('loginPwd').value;
+  const err = document.getElementById('loginError');
+
+  if (DB.users[id] && DB.users[id].pwd === pwd && DB.users[id].visible !== false) {
+    err.classList.add('hidden');
+    currentUser = { id, ...DB.users[id] };
+    AudioFX.success();
+    initUserSession();
+  } else {
+    err.classList.remove('hidden');
+    AudioFX.alert();
+  }
+}
+
+function doLogout() {
+  AudioFX.click();
+  currentUser = null;
+  currentActiveTest = null;
+  document.getElementById('userBadge').classList.add('hidden');
+  document.getElementById('userBadge').style.display = 'none';
+  showView('viewLogin');
+  if (testSession && testSession.timer) clearInterval(testSession.timer);
+}
+
+function handleLogoClick() {
+  if (currentUser) {
+    refreshCurrentPortal();
+  } else {
+    showView('viewLogin');
+  }
+}
+
+function initUserSession() {
+  document.getElementById('badgeName').textContent = currentUser.name;
+  document.getElementById('badgeRole').textContent = currentUser.role;
+  document.getElementById('badgeExtra').textContent = currentUser.dept ? currentUser.dept : (currentUser.year ? `Yr ${currentUser.year}` : '');
+  document.getElementById('userAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
+
+  const userBadge = document.getElementById('userBadge');
+  userBadge.classList.remove('hidden');
+  userBadge.style.display = 'flex';
+
+  refreshCurrentPortal();
+}
+
+function showView(viewId) {
+  ['viewLogin', 'viewAdmin', 'viewTeacher', 'viewStudent', 'testEnvironment'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+  const target = document.getElementById(viewId);
+  if (target) target.classList.remove('hidden');
+}
+
+function refreshCurrentPortal() {
+  if (!currentUser) return;
+  currentUser = { id: currentUser.id, ...DB.users[currentUser.id] };
+
+  if (currentUser.role === 'admin') {
+    showView('viewAdmin');
+    renderAdminPortal();
+  } else if (currentUser.role === 'teacher') {
+    showView('viewTeacher');
+    renderTeacherPortal();
+  } else if (currentUser.role === 'student') {
+    showView('viewStudent');
+    renderStudentPortal();
+  }
+}
+
+// =================== ADMIN CONTROLLER ===================
+let activeAdminTab = 'users';
+function switchAdminTab(tabName) {
+  AudioFX.click();
+  activeAdminTab = tabName;
+  ['users', 'tests', 'live', 'results'].forEach(t => {
+    const btn = document.getElementById(`atab_${t}`);
+    const content = document.getElementById(`adminTab_${t}`);
+    if (btn) btn.classList.toggle('active', t === tabName);
+    if (content) content.classList.toggle('hidden', t !== tabName);
+  });
+  if (tabName === 'users') renderAdminUsers();
+  else if (tabName === 'tests') renderAdminTests();
+  else if (tabName === 'live') renderAdminLiveRadar();
+  else if (tabName === 'results') renderAdminResults();
+}
+
+function renderAdminPortal() {
+  renderAdminMetrics();
+  switchAdminTab(activeAdminTab);
+}
+
+function renderAdminMetrics() {
+  const grid = document.getElementById('adminMetricsGrid');
+  const userCount = Object.keys(DB.users).length;
+  const testCount = DB.tests.length;
+  const activeCount = Object.keys(DB.activeSessions).length;
+  const subCount = DB.submissions.length;
+
+  grid.innerHTML = `
+    <div class="glass-panel p-4 rounded-2xl interactive-card border border-slate-200/80 dark:border-slate-800">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-400">Total Users</span>
+        <span class="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 flex items-center justify-center text-xs"><i class="fas fa-users"></i></span>
+      </div>
+      <div class="text-2xl sm:text-3xl font-black mt-2 text-slate-900 dark:text-white">${userCount}</div>
+      <div class="text-[11px] text-slate-400 mt-1">Institutional accounts</div>
+    </div>
+    <div class="glass-panel p-4 rounded-2xl interactive-card border border-slate-200/80 dark:border-slate-800">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-400">Assessments</span>
+        <span class="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 flex items-center justify-center text-xs"><i class="fas fa-file-signature"></i></span>
+      </div>
+      <div class="text-2xl sm:text-3xl font-black mt-2 text-slate-900 dark:text-white">${testCount}</div>
+      <div class="text-[11px] text-slate-400 mt-1">Configured exams</div>
+    </div>
+    <div class="glass-panel p-4 rounded-2xl interactive-card border border-slate-200/80 dark:border-slate-800">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-400">Live Active</span>
+        <span class="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-950 text-red-600 flex items-center justify-center text-xs ${activeCount > 0 ? 'animate-pulse' : ''}"><i class="fas fa-radar"></i></span>
+      </div>
+      <div class="text-2xl sm:text-3xl font-black mt-2 text-red-600">${activeCount}</div>
+      <div class="text-[11px] text-slate-400 mt-1">Proctored right now</div>
+    </div>
+    <div class="glass-panel p-4 rounded-2xl interactive-card border border-slate-200/80 dark:border-slate-800">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-400">Submissions</span>
+        <span class="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center text-xs"><i class="fas fa-circle-check"></i></span>
+      </div>
+      <div class="text-2xl sm:text-3xl font-black mt-2 text-emerald-600">${subCount}</div>
+      <div class="text-[11px] text-slate-400 mt-1">Graded records</div>
+    </div>
+  `;
+}
+
+function renderAdminUsers() {
+  const query = (document.getElementById('adminUserSearch')?.value || '').toLowerCase();
+  const branchF = document.getElementById('adminBranchFilter')?.value || '';
+  const yearF = document.getElementById('adminYearFilter')?.value || '';
+
+  const admins = [], teachers = [], students = [];
+
+  for (const [id, u] of Object.entries(DB.users)) {
+    if (u.visible === false) continue;
+    const match = id.toLowerCase().includes(query) || (u.name || '').toLowerCase().includes(query) || (u.dept || '').toLowerCase().includes(query);
+    if (!match) continue;
+
+    if (u.role === 'admin') admins.push([id, u]);
+    else if (u.role === 'teacher') teachers.push([id, u]);
+    else if (u.role === 'student') {
+      if (branchF && u.dept !== branchF) continue;
+      if (yearF && String(u.year) !== yearF) continue;
+      students.push([id, u]);
+    }
+  }
+
+  document.getElementById('count_admins').textContent = admins.length;
+  document.getElementById('count_teachers').textContent = teachers.length;
+  document.getElementById('count_students').textContent = students.length;
+
+  document.getElementById('tbl_admins').innerHTML = admins.map(([id, u]) => `
+    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+      <td class="px-5 py-3 font-mono font-bold text-xs text-purple-700 dark:text-purple-300">${id}</td>
+      <td class="px-5 py-3 font-bold">${u.name}</td>
+      <td class="px-5 py-3 text-xs text-slate-500">System Superuser</td>
+      <td class="px-5 py-3 text-right">
+        <div class="flex items-center justify-end gap-1.5">
+          <button onclick="openEditUser('${id}')" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 transition" title="Edit Profile"><i class="fas fa-pen-to-square"></i></button>
+          <button onclick="toggleHideUser('${id}')" class="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 transition" title="Hide Profile"><i class="fas fa-eye-slash"></i></button>
+          <button onclick="deleteUser('${id}')" class="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition" title="Delete Profile"><i class="fas fa-trash"></i></button>
+        </div>
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="4" class="p-4 text-center text-xs text-slate-400">No administrators found</td></tr>`;
+
+  document.getElementById('tbl_teachers').innerHTML = teachers.map(([id, u]) => `
+    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+      <td class="px-5 py-3 font-mono font-bold text-xs text-blue-700 dark:text-blue-300">${id}</td>
+      <td class="px-5 py-3 font-bold">${u.name}</td>
+      <td class="px-5 py-3 text-xs text-slate-500">${u.dept || 'Engineering Department'}</td>
+      <td class="px-5 py-3 text-right">
+        <div class="flex items-center justify-end gap-1.5">
+          <button onclick="openEditUser('${id}')" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 transition"><i class="fas fa-pen-to-square"></i></button>
+          <button onclick="toggleHideUser('${id}')" class="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 transition"><i class="fas fa-eye-slash"></i></button>
+          <button onclick="deleteUser('${id}')" class="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition"><i class="fas fa-trash"></i></button>
+        </div>
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="4" class="p-4 text-center text-xs text-slate-400">No faculty members found</td></tr>`;
+
+  document.getElementById('tbl_students').innerHTML = students.map(([id, u]) => {
+    const attWarning = (u.attendance || 0) < 75;
+    return `
+    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+      <td class="px-5 py-3 font-mono font-bold text-xs text-emerald-700 dark:text-emerald-300">${id}</td>
+      <td class="px-5 py-3 font-bold">${u.name}</td>
+      <td class="px-5 py-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-bold">Year ${u.year}</span></td>
+      <td class="px-5 py-3"><span class="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-300 text-xs font-bold">${u.dept}</span></td>
+      <td class="px-5 py-3">
+        <span class="text-xs font-extrabold ${attWarning ? 'text-red-500' : 'text-emerald-600'}">${u.attendance || 0}%</span>
+      </td>
+      <td class="px-5 py-3 text-right">
+        <div class="flex items-center justify-end gap-1.5">
+          <button onclick="openEditUser('${id}')" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 transition"><i class="fas fa-pen-to-square"></i></button>
+          <button onclick="toggleHideUser('${id}')" class="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 transition"><i class="fas fa-eye-slash"></i></button>
+          <button onclick="deleteUser('${id}')" class="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition"><i class="fas fa-trash"></i></button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="6" class="p-4 text-center text-xs text-slate-400">No students found</td></tr>`;
+}
+
+function renderAdminTests() {
+  const grid = document.getElementById('adminTestsGrid');
+  grid.innerHTML = DB.tests.map(t => renderAssessmentCard(t, true)).join('') || `<div class="col-span-full text-center py-12 text-slate-400">No assessments found.</div>`;
+}
+
+function renderAdminLiveRadar() {
+  const container = document.getElementById('adminLiveGrid');
+  const sessions = Object.entries(DB.activeSessions);
+  document.getElementById('liveRadarTimestamp').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+
+  if (sessions.length === 0) {
+    container.innerHTML = `<div class="col-span-full text-center py-16 text-slate-400 glass-panel rounded-2xl"><i class="fas fa-satellite text-3xl mb-2 text-slate-300"></i><p>No active tests in progress currently.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = sessions.map(([sid, sess]) => {
+    const student = DB.users[sid] || { name: sid };
+    const test = DB.tests.find(tt => tt.id === sess.tid) || { title: 'Unknown Exam' };
+    const tabShifts = sess.tabShifts || 0;
+    const isViolated = tabShifts > 0;
+
+    return `
+      <div class="glass-panel p-5 rounded-2xl interactive-card border-l-4 ${isViolated ? 'border-l-red-500 border-red-200 dark:border-red-900/50 bg-red-50/20' : 'border-l-emerald-500 border-slate-200 dark:border-slate-800'}">
+        <div class="flex items-start justify-between">
+          <div>
+            <h4 class="font-extrabold text-sm text-slate-900 dark:text-white">${student.name}</h4>
+            <span class="text-[11px] font-mono text-slate-400">${sid}</span>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${isViolated ? 'bg-red-100 text-red-600 dark:bg-red-950 animate-pulse' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950'}">
+            ${isViolated ? `${tabShifts} VIOLATIONS` : 'CLEAN SESSION'}
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 mt-2 font-medium truncate">${test.title}</p>
+        <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+          <span class="text-slate-400"><i class="far fa-clock mr-1"></i>Started ${new Date(sess.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          ${isViolated ? `<button onclick="alert('Student ${student.name} logged ${tabShifts} tab switches during ${test.title}.')" class="text-xs font-bold text-red-500 hover:underline">Details</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderAdminResults() {
+  const container = document.getElementById('adminTab_results');
+  renderSubmissionsList(container, null);
+}
+
+// =================== TEACHER CONTROLLER ===================
+let activeTeacherTab = 'tests';
+function switchTeacherTab(tabName) {
+  AudioFX.click();
+  activeTeacherTab = tabName;
+  ['tests', 'live', 'students', 'results'].forEach(t => {
+    const btn = document.getElementById(`ttab_${t}`);
+    const content = document.getElementById(`teacherTab_${t}`);
+    if (btn) btn.classList.toggle('active', t === tabName);
+    if (content) content.classList.toggle('hidden', t !== tabName);
+  });
+  if (tabName === 'tests') renderTeacherTests();
+  else if (tabName === 'live') renderTeacherLiveRadar();
+  else if (tabName === 'students') renderTeacherStudents();
+  else if (tabName === 'results') renderTeacherResults();
+}
+
+function renderTeacherPortal() {
+  document.getElementById('teacherGreeting').textContent = `Welcome, Prof. ${currentUser.name.split(' ')[0]}`;
+  document.getElementById('teacherDeptText').textContent = currentUser.dept || 'Engineering Faculty';
+  switchTeacherTab(activeTeacherTab);
+}
+
+function renderTeacherTests() {
+  const grid = document.getElementById('teacherTestsGrid');
+  const myTests = DB.tests.filter(t => t.createdBy === currentUser.id);
+  grid.innerHTML = myTests.map(t => renderAssessmentCard(t, false)).join('') || `
+    <div class="col-span-full text-center py-16 text-slate-400 glass-panel rounded-3xl">
+      <i class="fas fa-file-circle-plus text-4xl mb-3 text-slate-300"></i>
+      <p class="font-bold text-base">You have not scheduled any assessments yet.</p>
+      <button onclick="openCreateTestModal()" class="mt-3 px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">Create Assessment</button>
+    </div>
+  `;
+}
+
+function renderTeacherLiveRadar() {
+  const container = document.getElementById('teacherLiveGrid');
+  const myTestIds = DB.tests.filter(t => t.createdBy === currentUser.id).map(t => t.id);
+  const relevantSessions = Object.entries(DB.activeSessions).filter(([_, sess]) => myTestIds.includes(sess.tid));
+
+  if (relevantSessions.length === 0) {
+    container.innerHTML = `<div class="col-span-full text-center py-16 text-slate-400 glass-panel rounded-2xl"><i class="fas fa-satellite-dish text-3xl mb-2 text-slate-300"></i><p>No active sessions on your assessments right now.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = relevantSessions.map(([sid, sess]) => {
+    const student = DB.users[sid] || { name: sid };
+    const test = DB.tests.find(tt => tt.id === sess.tid);
+    const tabShifts = sess.tabShifts || 0;
+    const isViolated = tabShifts > 0;
+
+    return `
+      <div class="glass-panel p-5 rounded-2xl interactive-card border-l-4 ${isViolated ? 'border-l-red-500 bg-red-50/20' : 'border-l-emerald-500'}">
+        <div class="flex items-start justify-between">
+          <div>
+            <h4 class="font-extrabold text-sm text-slate-900 dark:text-white">${student.name}</h4>
+            <span class="text-[11px] font-mono text-slate-400">${sid}</span>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${isViolated ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-emerald-100 text-emerald-600'}">
+            ${isViolated ? `TAB SHIFT x${tabShifts}` : 'LIVE OK'}
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 mt-2 font-medium">${test?.title}</p>
+        <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between text-xs">
+          <span class="text-slate-400">Elapsed: ${Math.round((Date.now() - (sess.startedAt || Date.now())) / 60000)}m</span>
+          ${isViolated ? `<button onclick="alert('Student ${student.name} violated anti-cheating policy ${tabShifts} times.')" class="font-bold text-red-500 hover:underline">Report Violation</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderTeacherStudents() {
+  const tbody = document.getElementById('tbl_teacher_students');
+  const myTestIds = DB.tests.filter(t => t.createdBy === currentUser.id).map(t => t.id);
+
+  const students = Object.entries(DB.users).filter(([_, u]) => u.role === 'student' && u.visible !== false);
+  tbody.innerHTML = students.map(([id, u]) => {
+    const myAttempts = DB.submissions.filter(s => s.sid === id && myTestIds.includes(s.tid)).length;
+    return `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+        <td class="px-5 py-3">
+          <div class="font-bold text-sm">${u.name}</div>
+          <div class="font-mono text-xs text-slate-400">${id}</div>
+        </td>
+        <td class="px-5 py-3 text-xs font-semibold">Yr ${u.year} • ${u.dept}</td>
+        <td class="px-5 py-3 text-xs font-extrabold ${u.attendance < 75 ? 'text-red-500' : 'text-emerald-600'}">${u.attendance || 0}%</td>
+        <td class="px-5 py-3">
+          <span class="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 text-xs font-bold">${myAttempts} Completed</span>
+        </td>
+      </tr>
+    `;
+  }).join('') || `<tr><td colspan="4" class="p-4 text-center text-xs text-slate-400">No students found</td></tr>`;
+}
+
+function renderTeacherResults() {
+  const container = document.getElementById('teacherResultsList');
+  renderSubmissionsList(container, currentUser.id);
+}
+
+// Shared Submissions Renderer
+function renderSubmissionsList(container, teacherIdFilter) {
+  let list = [...DB.submissions].reverse();
+  if (teacherIdFilter) {
+    const myTestIds = DB.tests.filter(t => t.createdBy === teacherIdFilter).map(t => t.id);
+    list = list.filter(s => myTestIds.includes(s.tid));
+  }
+
+  if (list.length === 0) {
+    container.innerHTML = `<div class="text-center py-12 text-slate-400 glass-panel rounded-2xl"><i class="fas fa-inbox text-3xl mb-2 text-slate-300"></i><p>No test attempts submitted yet.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(sub => {
+    const student = DB.users[sub.sid] || { name: sub.sid };
+    const test = DB.tests.find(tt => tt.id === sub.tid) || { title: 'Exam' };
+    const acc = Math.round((sub.score / (sub.maxScore || 1)) * 100);
+    const hasShifts = sub.tabShifts > 0;
+
+    return `
+      <div class="glass-panel p-4 rounded-2xl interactive-card border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-sm text-slate-900 dark:text-white">${student.name}</span>
+            <span class="text-xs font-mono text-slate-400">(${sub.sid})</span>
+            ${hasShifts ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-red-100 text-red-600 dark:bg-red-950"><i class="fas fa-triangle-exclamation mr-1"></i>${sub.tabShifts} Tab Shifts</span>` : ''}
+          </div>
+          <p class="text-xs text-slate-500 mt-1">${test.title} • Submitted ${new Date(sub.submittedAt).toLocaleDateString()} ${new Date(sub.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+        </div>
+        <div class="flex items-center gap-4 shrink-0">
+          <div class="text-right">
+            <span class="text-[10px] font-bold text-slate-400 uppercase block">Score</span>
+            <span class="text-base font-black text-blue-600 dark:text-blue-400">${sub.score}/${sub.maxScore} (${acc}%)</span>
+          </div>
+          <button onclick="displayReportModal(${JSON.stringify(sub).replace(/"/g, '&quot;')})" class="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 text-xs font-bold transition">
+            View Analytics
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Reusable Assessment Card Renderer
+function renderAssessmentCard(test, isAdmin) {
+  const activeBadge = test.isActive
+    ? `<span class="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> ACTIVE</span>`
+    : `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800">INACTIVE</span>`;
+
+  const canEdit = !test.isActive;
+  const submissionsCount = DB.submissions.filter(s => s.tid === test.id).length;
+  const violationsCount = Object.entries(DB.activeSessions).filter(([_, sess]) => sess.tid === test.id && sess.tabShifts > 0).length;
+
+  return `
+    <div class="glass-panel p-5 rounded-3xl interactive-card border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-4">
+      <div>
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">${test.subject || 'Engineering'}</span>
+          ${activeBadge}
+        </div>
+        <h4 class="font-black text-base text-slate-900 dark:text-white leading-snug">${test.title}</h4>
+        <div class="grid grid-cols-2 gap-2 mt-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
+          <div><i class="far fa-clock mr-1 text-slate-400"></i>${test.duration} mins</div>
+          <div><i class="fas fa-redo mr-1 text-slate-400"></i>${test.maxAttempts || 1} attempt(s)</div>
+          <div><i class="fas fa-users mr-1 text-slate-400"></i>${test.assignedTo.length} assigned</div>
+          <div><i class="fas fa-file-lines mr-1 text-slate-400"></i>${test.questions.length} questions</div>
+        </div>
+        ${violationsCount > 0 ? `
+          <div class="mt-2.5 p-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-600 text-xs font-bold flex items-center justify-between">
+            <span><i class="fas fa-triangle-exclamation mr-1"></i>${violationsCount} Live Violations</span>
+            <button onclick="switchTeacherTab('live')" class="underline text-[10px]">Inspect</button>
+          </div>
+        ` : ''}
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-1.5">
+        ${canEdit ? `<button onclick="openEditTestModal('${test.id}')" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-bold transition flex items-center gap-1" title="Edit Assessment"><i class="fas fa-pen"></i> Edit</button>` : ''}
+        <button onclick="toggleTestStatus('${test.id}')" class="px-2.5 py-1.5 rounded-xl ${test.isActive ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40'} text-xs font-bold transition flex items-center gap-1">
+          <i class="fas fa-${test.isActive ? 'eye-slash' : 'play'}"></i> ${test.isActive ? 'Deactivate' : 'Activate'}
+        </button>
+        <button onclick="openAssignModal('${test.id}')" class="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition flex items-center gap-1">
+          <i class="fas fa-user-check"></i> Assign
+        </button>
+        <button onclick="deleteAssessment('${test.id}')" class="px-2 py-1.5 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950 ml-auto transition" title="Delete Assessment">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Assessment Actions
+function toggleTestStatus(testId) {
+  AudioFX.click();
+  const test = DB.tests.find(t => t.id === testId);
+  if (!test) return;
+  test.isActive = !test.isActive;
+  saveDB();
+  refreshCurrentPortal();
+}
+
+function deleteAssessment(testId) {
+  if (!confirm('Are you sure you want to delete this assessment?')) return;
+  AudioFX.click();
+  DB.tests = DB.tests.filter(t => t.id !== testId);
+  saveDB();
+  refreshCurrentPortal();
+}
+
+// =================== STUDENT CONTROLLER ===================
+function renderStudentPortal() {
+  document.getElementById('studentWelcomeName').textContent = currentUser.name.split(' ')[0];
+  document.getElementById('studentDeptBadge').textContent = currentUser.dept || 'Engineering';
+  document.getElementById('studentYearBadge').textContent = `Year ${currentUser.year || 1}`;
+  document.getElementById('studentAttBadge').textContent = `Attendance: ${currentUser.attendance || 0}%`;
+
+  const mySubmissions = DB.submissions.filter(s => s.sid === currentUser.id);
+  document.getElementById('studentCompletedCount').textContent = mySubmissions.length;
+  if (mySubmissions.length > 0) {
+    const totalAcc = mySubmissions.reduce((acc, s) => acc + (s.score / (s.maxScore || 1)), 0);
+    document.getElementById('studentAvgAcc').textContent = `${Math.round((totalAcc / mySubmissions.length) * 100)}%`;
+  } else {
+    document.getElementById('studentAvgAcc').textContent = '—';
+  }
+
+  const grid = document.getElementById('studentTestsGrid');
+  // Strict rule: Only tests that are active AND match student year
+  const availableTests = DB.tests.filter(t => t.isActive && t.year === currentUser.year);
+
+  if (availableTests.length === 0) {
+    grid.innerHTML = `
+      <div class="col-span-full text-center py-16 text-slate-400 glass-panel rounded-3xl">
+        <i class="fas fa-calendar-check text-4xl mb-3 text-slate-300"></i>
+        <p class="font-bold text-base">No active assessments available for Year ${currentUser.year}.</p>
+        <p class="text-xs text-slate-400 mt-1">Tests activated by your faculty will appear here automatically.</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = availableTests.map(test => {
+    const isAssigned = (test.assignedTo || []).includes(currentUser.id);
+    const pastAttempts = DB.submissions.filter(s => s.sid === currentUser.id && s.tid === test.id).length;
+    const maxAttempts = test.maxAttempts || 1;
+    const attemptsLeft = maxAttempts - pastAttempts;
+
+    let actionButton = '';
+    if (!isAssigned) {
+      actionButton = `
+        <button disabled class="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5">
+          <i class="fas fa-lock text-xs"></i>
+          <span>Not Assigned to You</span>
+        </button>
+      `;
+    } else if (attemptsLeft <= 0) {
+      actionButton = `
+        <button disabled class="w-full py-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5">
+          <i class="fas fa-ban text-xs"></i>
+          <span>Max Attempts Reached (${maxAttempts}/${maxAttempts})</span>
+        </button>
+      `;
+    } else {
+      actionButton = `
+        <button onclick="beginTestExecution('${test.id}')" class="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition transform hover:-translate-y-0.5 active:scale-95 shadow-md shadow-blue-500/25 flex items-center justify-center gap-1.5">
+          <i class="fas fa-play text-xs"></i>
+          <span>Start Assessment (${pastAttempts}/${maxAttempts} Taken)</span>
+        </button>
+      `;
+    }
+
+    return `
+      <div class="glass-panel p-6 rounded-3xl interactive-card border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-5">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">${test.subject || 'Subject'}</span>
+            <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded"><i class="fas fa-circle text-[6px] mr-1"></i>Active</span>
+          </div>
+          <h4 class="font-black text-lg text-slate-900 dark:text-white leading-snug">${test.title}</h4>
+          <div class="space-y-1.5 mt-3 text-xs text-slate-500 font-medium">
+            <div><i class="far fa-clock w-4 text-center text-slate-400"></i> ${test.duration} Minutes Duration</div>
+            <div><i class="fas fa-list-ol w-4 text-center text-slate-400"></i> ${test.questions.length} Question Items</div>
+            <div><i class="fas fa-calculator w-4 text-center text-slate-400"></i> +${test.posMarks || 4} marks / -${test.negMarks || 0} negative</div>
+          </div>
+        </div>
+        ${actionButton}
+      </div>
+    `;
+  }).join('');
+}
+
+// =================== TEST EXECUTION ENGINE ===================
+function beginTestExecution(testId) {
+  const test = DB.tests.find(t => t.id === testId);
+  if (!test) return;
+
+  AudioFX.success();
+  currentActiveTest = test;
+
+  testSession = {
+    test,
+    currentIdx: 0,
+    answers: {},
+    markedReview: {},
+    questionTimes: {},
+    qStartTime: Date.now(),
+    overallStartTime: Date.now(),
+    timeLeftSeconds: test.duration * 60,
+    tabShifts: 0,
+    timer: null
+  };
+
+  // Register in active sessions for live proctor radar
+  DB.activeSessions[currentUser.id] = {
+    tid: test.id,
+    tabShifts: 0,
+    startedAt: Date.now()
+  };
+  saveDB();
+
+  document.getElementById('envTestTitle').textContent = test.title;
+  document.getElementById('envSubjectBadge').textContent = test.subject || 'Engineering';
+  document.getElementById('envViolationCount').innerHTML = `<i class="fas fa-triangle-exclamation mr-1"></i>0 Violations`;
+
+  showView('testEnvironment');
+  document.documentElement.requestFullscreen().catch(() => {});
+
+  // Anti-cheat detection listeners
+  window.addEventListener('blur', handleWindowShift);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  startTestTimer();
+  renderPalette();
+  renderCurrentQuestion();
+}
+
+function handleWindowShift() {
+  if (!testSession || !currentActiveTest) return;
+  testSession.tabShifts++;
+  AudioFX.alert();
+
+  if (DB.activeSessions[currentUser.id]) {
+    DB.activeSessions[currentUser.id].tabShifts = testSession.tabShifts;
+    saveDB();
+  }
+
+  document.getElementById('envViolationCount').innerHTML = `<i class="fas fa-triangle-exclamation mr-1"></i>${testSession.tabShifts} Violations`;
+  document.getElementById('modalViolationCounter').textContent = testSession.tabShifts;
+  openModal('modalTabShift');
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) handleWindowShift();
+}
+
+function dismissTabShiftModal() {
+  AudioFX.click();
+  closeModal('modalTabShift');
+  document.documentElement.requestFullscreen().catch(() => {});
+}
+
+function startTestTimer() {
+  clearInterval(testSession.timer);
+  updateTimerUI();
+  testSession.timer = setInterval(() => {
+    testSession.timeLeftSeconds--;
+    updateTimerUI();
+    if (testSession.timeLeftSeconds <= 0) {
+      clearInterval(testSession.timer);
+      executeTestSubmit();
+    }
+  }, 1000);
+}
+
+function updateTimerUI() {
+  const m = Math.floor(testSession.timeLeftSeconds / 60).toString().padStart(2, '0');
+  const s = (testSession.timeLeftSeconds % 60).toString().padStart(2, '0');
+  document.getElementById('envTimerDisplay').textContent = `${m}:${s}`;
+  if (testSession.timeLeftSeconds < 120) {
+    document.getElementById('envTimerDisplay').classList.add('text-red-500', 'animate-pulse');
+  }
+}
+
+function renderPalette() {
+  const grid = document.getElementById('envPaletteGrid');
+  grid.innerHTML = '';
+  const total = testSession.test.questions.length;
+  const answeredCount = Object.keys(testSession.answers).filter(k => testSession.answers[k] !== undefined && testSession.answers[k] !== '').length;
+
+  document.getElementById('envProgressFraction').textContent = `${answeredCount} / ${total}`;
+  document.getElementById('envProgressLine').style.width = `${Math.round((answeredCount / total) * 100)}%`;
+
+  testSession.test.questions.forEach((q, idx) => {
+    let btnClass = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700';
+
+    const isAnswered = testSession.answers[idx] !== undefined && testSession.answers[idx] !== '';
+    const isMarked = testSession.markedReview[idx];
+
+    if (isMarked) {
+      btnClass = 'bg-purple-600 text-white border-purple-700';
+    } else if (isAnswered) {
+      btnClass = 'bg-emerald-500 text-white border-emerald-600';
+    }
+
+    if (idx === testSession.currentIdx) {
+      btnClass += ' ring-2 ring-blue-500 font-black scale-110 shadow-md';
+    }
+
+    grid.innerHTML += `
+      <button onclick="jumpToQuestion(${idx})" class="pal-btn w-9 h-9 rounded-xl text-xs font-bold flex items-center justify-center ${btnClass}">
+        ${idx + 1}
+      </button>
+    `;
+  });
+
+  document.getElementById('btnPrevQ').disabled = testSession.currentIdx === 0;
+  document.getElementById('btnNextQ').disabled = testSession.currentIdx === total - 1;
+}
+
+function jumpToQuestion(idx) {
+  AudioFX.click();
+  // record time spent on previous Q
+  recordTimeSpentOnQ();
+  testSession.currentIdx = idx;
+  testSession.qStartTime = Date.now();
+  renderPalette();
+  renderCurrentQuestion();
+}
+
+function navigateQ(dir) {
+  const newIdx = testSession.currentIdx + dir;
+  if (newIdx >= 0 && newIdx < testSession.test.questions.length) {
+    jumpToQuestion(newIdx);
+  }
+}
+
+function toggleMarkReview() {
+  AudioFX.click();
+  const idx = testSession.currentIdx;
+  testSession.markedReview[idx] = !testSession.markedReview[idx];
+  renderPalette();
+}
+
+function recordTimeSpentOnQ() {
+  const idx = testSession.currentIdx;
+  const elapsed = Math.round((Date.now() - testSession.qStartTime) / 1000);
+  testSession.questionTimes[idx] = (testSession.questionTimes[idx] || 0) + elapsed;
+}
+
+function renderCurrentQuestion() {
+  const q = testSession.test.questions[testSession.currentIdx];
+  const stage = document.getElementById('envQuestionStage');
+  const isMarked = testSession.markedReview[testSession.currentIdx];
+
+  document.getElementById('btnMarkReview').classList.toggle('bg-purple-100', isMarked);
+  document.getElementById('btnMarkReview').classList.toggle('dark:bg-purple-950', isMarked);
+
+  let contentHtml = `
+    <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-xl bg-blue-600 text-white font-black text-sm flex items-center justify-center shadow-md">
+            ${testSession.currentIdx + 1}
+          </span>
+          <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase ${q.type === 'mcq' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}">
+            ${q.type === 'mcq' ? '<i class="fas fa-list-check mr-1"></i> Multiple Choice Question' : `<i class="fas fa-code mr-1"></i> Code Challenge (${(q.lang || 'javascript').toUpperCase()})`}
+          </span>
+        </div>
+      </div>
+
+      <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <p class="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">${q.q}</p>
+      </div>
+  `;
+
+  if (q.type === 'mcq') {
+    contentHtml += `<div class="space-y-3">`;
+    (q.opts || []).forEach((opt, oi) => {
+      const selected = testSession.answers[testSession.currentIdx] === oi;
+      contentHtml += `
+        <label class="flex items-center p-4 rounded-2xl border-2 cursor-pointer transition transform active:scale-98 ${selected ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40' : 'border-slate-200 dark:border-slate-800 hover:border-blue-300 bg-white dark:bg-slate-900'}">
+          <input type="radio" name="mcq_option" value="${oi}" ${selected ? 'checked' : ''} onchange="saveAnswer(${oi})" class="hidden">
+          <div class="w-5 h-5 rounded-full border-2 ${selected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 dark:border-slate-600'} mr-3 flex items-center justify-center shrink-0">
+            ${selected ? '<div class="w-2 h-2 rounded-full bg-white"></div>' : ''}
+          </div>
+          <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">${opt}</span>
+        </label>
+      `;
+    });
+    contentHtml += `</div>`;
+  } else {
+    // Coding Challenge
+    const savedCode = testSession.answers[testSession.currentIdx] !== undefined ? testSession.answers[testSession.currentIdx] : (q.starter || '');
+    contentHtml += `
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[440px]">
+        <div class="flex flex-col rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-slate-900">
+          <div class="px-4 py-2.5 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between text-xs text-slate-300 font-mono">
+            <span><i class="fas fa-file-code mr-1 text-blue-400"></i> Solution (${q.lang || 'javascript'})</span>
+            <button onclick="resetStarterCode()" class="text-[11px] text-slate-400 hover:text-white underline">Reset Boilerplate</button>
+          </div>
+          <textarea id="liveCodeEditor" onblur="saveAnswer(this.value)" class="flex-grow p-4 font-mono text-xs bg-slate-900 text-slate-100 resize-none outline-none leading-relaxed" spellcheck="false">${savedCode}</textarea>
+        </div>
+
+        <div class="flex flex-col rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-[#0f172a]">
+          <div class="px-4 py-2 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-300"><i class="fas fa-terminal mr-1 text-emerald-400"></i> Console Output</span>
+            <button id="btnRunCode" onclick="executeOnlineCode('${q.lang || 'javascript'}')" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+              <i class="fas fa-play text-[10px]"></i> Run Code
+            </button>
+          </div>
+          <pre id="liveConsoleOutput" class="flex-grow p-4 font-mono text-xs text-emerald-400 overflow-y-auto m-0 whitespace-pre-wrap">Click "Run Code" to test execution.</pre>
+        </div>
+      </div>
+    `;
+  }
+
+  contentHtml += `</div>`;
+  stage.innerHTML = contentHtml;
+}
+
+function saveAnswer(val) {
+  AudioFX.click();
+  testSession.answers[testSession.currentIdx] = val;
+  renderPalette();
+  if (testSession.test.questions[testSession.currentIdx].type === 'mcq') {
+    renderCurrentQuestion();
+  }
+}
+
+function resetStarterCode() {
+  const q = testSession.test.questions[testSession.currentIdx];
+  const editor = document.getElementById('liveCodeEditor');
+  if (editor) {
+    editor.value = q.starter || '';
+    saveAnswer(editor.value);
+  }
+}
+
+async function executeOnlineCode(lang) {
+  const code = document.getElementById('liveCodeEditor')?.value || '';
+  const outputEl = document.getElementById('liveConsoleOutput');
+  const runBtn = document.getElementById('btnRunCode');
+  saveAnswer(code);
+
+  runBtn.disabled = true;
+  runBtn.innerHTML = `<i class="fas fa-spinner fa-spin text-[10px]"></i> Running...`;
+  outputEl.innerHTML = `<span class="text-blue-400 animate-pulse">Executing code in cloud container...</span>`;
+
+  if (lang === 'javascript') {
+    setTimeout(() => {
+      const logs = [];
+      const originalLog = console.log;
+      console.log = (...args) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' '));
+      try {
+        new Function(code)();
+        outputEl.innerHTML = `<span class="text-emerald-400 font-mono">${logs.join('\n') || '[Process completed with exit code 0]'}</span>`;
+      } catch (err) {
+        outputEl.innerHTML = `<span class="text-red-400 font-mono">Runtime Error: ${err.message}</span>`;
+      }
+      console.log = originalLog;
+      runBtn.disabled = false;
+      runBtn.innerHTML = `<i class="fas fa-play text-[10px]"></i> Run Code`;
+    }, 400);
+  } else {
+    // Piston Cloud API execution
+    const langMap = {
+      python: { language: 'python', version: '3.10.0' },
+      java: { language: 'java', version: '15.0.2' },
+      cpp: { language: 'cpp', version: '10.2.0' }
+    };
+    const targetLang = langMap[lang] || { language: lang, version: '*' };
+
+    try {
+      const res = await fetch('https://emkc.org/api/v2/piston/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: targetLang.language,
+          version: targetLang.version,
+          files: [{ content: code }]
+        })
+      });
+      const data = await res.json();
+      let rendered = '';
+      if (data.compile && data.compile.code !== 0) {
+        rendered = `<span class="text-red-400 font-mono">Compilation Error:\n${data.compile.stderr || data.compile.output}</span>`;
+      } else if (data.run) {
+        if (data.run.stderr) rendered += `<span class="text-red-400 font-mono">${data.run.stderr}</span>\n`;
+        if (data.run.stdout) rendered += `<span class="text-emerald-400 font-mono">${data.run.stdout}</span>`;
+        if (!rendered) rendered = `<span class="text-slate-400">[Program finished with no output]</span>`;
+      } else {
+        rendered = `<span class="text-slate-400">${data.message || 'Execution finished'}</span>`;
+      }
+      outputEl.innerHTML = rendered;
+    } catch (e) {
+      outputEl.innerHTML = `<span class="text-red-400">Execution server unavailable or offline.</span>`;
+    }
+    runBtn.disabled = false;
+    runBtn.innerHTML = `<i class="fas fa-play text-[10px]"></i> Run Code`;
+  }
+}
+
+function confirmSubmitTest() {
+  if (confirm('Are you sure you want to submit your assessment? You cannot change answers after submission.')) {
+    executeTestSubmit();
+  }
+}
+
+function executeTestSubmit() {
+  clearInterval(testSession.timer);
+  recordTimeSpentOnQ();
+
+  window.removeEventListener('blur', handleWindowShift);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+
+  const test = testSession.test;
+  let score = 0;
+  let maxScore = 0;
+  const breakdown = [];
+
+  test.questions.forEach((q, idx) => {
+    const pos = test.posMarks || 4;
+    const neg = test.negMarks || 0;
+    maxScore += pos;
+    const ans = testSession.answers[idx];
+    let isCorrect = false;
+
+    if (q.type === 'mcq') {
+      if (ans === q.ans) {
+        score += pos;
+        isCorrect = true;
+      } else if (ans !== undefined && ans !== '') {
+        score -= neg;
+      }
+    } else {
+      // Code challenge: award if code modified and non-empty
+      const modified = ans && ans.trim() !== (q.starter || '').trim() && ans.trim().length > 10;
+      if (modified) {
+        score += pos;
+        isCorrect = true;
+      }
+    }
+
+    breakdown.push({
+      qIdx: idx,
+      text: q.q,
+      type: q.type,
+      timeSeconds: testSession.questionTimes[idx] || 0,
+      isCorrect
+    });
+  });
+
+  const record = {
+    id: 'sub_' + Date.now(),
+    sid: currentUser.id,
+    tid: test.id,
+    score: Math.max(0, score),
+    maxScore,
+    totalDurationSeconds: Math.round((Date.now() - testSession.overallStartTime) / 1000),
+    tabShifts: testSession.tabShifts,
+    questionBreakdown: breakdown,
+    submittedAt: Date.now()
+  };
+
+  DB.submissions.push(record);
+  delete DB.activeSessions[currentUser.id];
+  saveDB();
+
+  showView('viewStudent');
+  displayReportModal(record);
+  testSession = null;
+  currentActiveTest = null;
+}
+
+function displayReportModal(record) {
+  const test = DB.tests.find(t => t.id === record.tid) || { title: 'Assessment' };
+  document.getElementById('resModalTitle').textContent = test.title;
+  document.getElementById('resScore').textContent = `${record.score}/${record.maxScore}`;
+
+  const acc = Math.round((record.score / (record.maxScore || 1)) * 100);
+  document.getElementById('resAccuracy').textContent = `${acc}%`;
+
+  const m = Math.floor(record.totalDurationSeconds / 60);
+  const s = record.totalDurationSeconds % 60;
+  document.getElementById('resDuration').textContent = `${m}m ${s}s`;
+
+  const tsEl = document.getElementById('resTabShifts');
+  tsEl.textContent = record.tabShifts;
+  tsEl.className = `block text-2xl font-black ${record.tabShifts > 0 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`;
+
+  const breakdownContainer = document.getElementById('resQuestionsBreakdown');
+  breakdownContainer.innerHTML = record.questionBreakdown.map((item, idx) => `
+    <div class="p-3 rounded-xl border flex items-center justify-between text-xs ${item.isCorrect ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/60 dark:bg-emerald-950/20' : 'border-red-200 bg-red-50/50 dark:border-red-900/60 dark:bg-red-950/20'}">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="w-6 h-6 rounded-lg ${item.isCorrect ? 'bg-emerald-600' : 'bg-red-500'} text-white font-black flex items-center justify-center shrink-0 text-[11px]">${idx + 1}</span>
+        <span class="truncate font-semibold text-slate-700 dark:text-slate-200">${item.text}</span>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <span class="font-mono text-slate-400"><i class="far fa-clock mr-1"></i>${item.timeSeconds}s</span>
+        <span class="font-extrabold ${item.isCorrect ? 'text-emerald-600' : 'text-red-500'}">${item.isCorrect ? '+ Points' : '0'}</span>
+      </div>
+    </div>
+  `).join('');
+
+  openModal('modalResultCard');
+
+  // Trigger celebratory confetti if accuracy is good!
+  if (acc >= 50 && typeof confetti === 'function') {
+    confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+  }
+}
+
+function closeResultModal() {
+  AudioFX.click();
+  closeModal('modalResultCard');
+  refreshCurrentPortal();
+}
+
+// =================== MODALS & BUILDERS ===================
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.remove('hidden');
+    AudioFX.click();
+  }
+}
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.add('hidden');
+    AudioFX.click();
+  }
+}
+
+// 1. Assign Students Modal Logic
+function openAssignModal(testId) {
+  assigningTestId = testId;
+  const test = DB.tests.find(t => t.id === testId);
+  document.getElementById('assignAssessmentTitle').textContent = test.title;
+
+  const targetStudents = Object.entries(DB.users).filter(([_, u]) => u.role === 'student' && u.year === test.year && u.visible !== false);
+  const container = document.getElementById('assignStudentList');
+
+  container.innerHTML = targetStudents.map(([id, u]) => {
+    const isAssigned = (test.assignedTo || []).includes(id);
+    return `
+      <label class="p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition ${isAssigned ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40' : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50'}">
+        <div>
+          <div class="font-bold text-sm text-slate-900 dark:text-white">${u.name}</div>
+          <div class="text-xs font-mono text-slate-400">${id} • ${u.dept}</div>
+        </div>
+        <input type="checkbox" value="${id}" ${isAssigned ? 'checked' : ''} onchange="updateAssignCounter()" class="assign-student-cb w-5 h-5 rounded text-blue-600">
+      </label>
+    `;
+  }).join('') || `<p class="text-xs text-slate-400 text-center py-6">No students found for Year ${test.year}.</p>`;
+
+  updateAssignCounter();
+  openModal('modalAssign');
+}
+
+function updateAssignCounter() {
+  const selected = document.querySelectorAll('.assign-student-cb:checked').length;
+  document.getElementById('assignedCounter').textContent = `${selected} selected`;
+}
+
+function selectAllStudents(checked) {
+  document.querySelectorAll('.assign-student-cb').forEach(cb => cb.checked = checked);
+  updateAssignCounter();
+}
+
+function saveStudentAssignments() {
+  AudioFX.success();
+  const test = DB.tests.find(t => t.id === assigningTestId);
+  test.assignedTo = Array.from(document.querySelectorAll('.assign-student-cb:checked')).map(cb => cb.value);
+  saveDB();
+  closeModal('modalAssign');
+  refreshCurrentPortal();
+}
+
+// 2. New User Creation Formula
+function toggleNuFields() {
+  const role = document.getElementById('nu_role').value;
+  document.getElementById('nu_student_fields').classList.toggle('hidden', role !== 'student');
+}
+
+function calculateCredsPreview() {
+  const fn = document.getElementById('nu_first').value.trim().toUpperCase().replace(/[^A-Z]/g, '');
+  const ln = document.getElementById('nu_last').value.trim().toUpperCase().replace(/[^A-Z]/g, '');
+  const dob = document.getElementById('nu_dob').value;
+  const urn = document.getElementById('nu_urn').value.trim();
+
+  let genId = '';
+  let genPwd = '';
+
+  if (fn && ln && dob) {
+    const d = new Date(dob);
+    if (!isNaN(d)) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const prefix = (fn + ln).substring(0, 5).padEnd(5, 'X');
+      genId = `${prefix}${dd}${mm}`;
+    }
+  }
+
+  if (urn) {
+    genPwd = `Q-${urn}`;
+  }
+
+  document.getElementById('nu_custom_id').value = genId;
+  document.getElementById('nu_custom_pwd').value = genPwd;
+}
+
+function saveNewUser() {
+  const id = document.getElementById('nu_custom_id').value.trim();
+  const pwd = document.getElementById('nu_custom_pwd').value.trim();
+  const role = document.getElementById('nu_role').value;
+  const fn = document.getElementById('nu_first').value.trim();
+  const mn = document.getElementById('nu_mid').value.trim();
+  const ln = document.getElementById('nu_last').value.trim();
+
+  if (!id || !pwd || !fn || !ln) {
+    alert('Please fill out First Name, Last Name, DOB, and URN.');
+    return;
+  }
+
+  if (DB.users[id]) {
+    alert('User ID already exists! Please adjust the ID field.');
+    return;
+  }
+
+  AudioFX.success();
+  const fullName = [fn, mn, ln].filter(Boolean).join(' ');
+  const userRecord = {
+    role,
+    pwd,
+    name: fullName,
+    visible: true
+  };
+
+  if (role === 'student') {
+    userRecord.year = parseInt(document.getElementById('nu_year').value);
+    userRecord.dept = document.getElementById('nu_branch').value;
+    userRecord.attendance = 100;
+  } else if (role === 'teacher') {
+    userRecord.dept = document.getElementById('nu_branch').value;
+  }
+
+  DB.users[id] = userRecord;
+  saveDB();
+  closeModal('modalNewUser');
+  refreshCurrentPortal();
+}
+
+// 3. Edit User Profile
+function openEditUser(id) {
+  const u = DB.users[id];
+  document.getElementById('eu_orig_id').value = id;
+  document.getElementById('eu_id').value = id;
+  document.getElementById('eu_pwd').value = u.pwd;
+  document.getElementById('eu_name').value = u.name;
+  document.getElementById('eu_dept').value = u.dept || '';
+  document.getElementById('eu_student_fields').classList.toggle('hidden', u.role !== 'student');
+  if (u.role === 'student') {
+    document.getElementById('eu_year').value = u.year || 1;
+    document.getElementById('eu_att').value = u.attendance || 0;
+  }
+  openModal('modalEditUser');
+}
+
+function saveEditedUser() {
+  AudioFX.success();
+  const origId = document.getElementById('eu_orig_id').value;
+  const newId = document.getElementById('eu_id').value.trim();
+  const pwd = document.getElementById('eu_pwd').value.trim();
+  const name = document.getElementById('eu_name').value.trim();
+
+  if (!newId || !pwd || !name) {
+    alert('ID, Password and Name are required.');
+    return;
+  }
+
+  const u = DB.users[origId];
+  u.pwd = pwd;
+  u.name = name;
+  u.dept = document.getElementById('eu_dept').value;
+
+  if (u.role === 'student') {
+    u.year = parseInt(document.getElementById('eu_year').value);
+    u.attendance = parseInt(document.getElementById('eu_att').value) || 0;
+  }
+
+  if (newId !== origId) {
+    if (DB.users[newId]) {
+      alert('New User ID is already occupied.');
+      return;
+    }
+    DB.users[newId] = u;
+    delete DB.users[origId];
+
+    // Cascade rename
+    DB.tests.forEach(t => {
+      t.assignedTo = (t.assignedTo || []).map(sid => sid === origId ? newId : sid);
+      if (t.createdBy === origId) t.createdBy = newId;
+    });
+    DB.submissions.forEach(s => { if (s.sid === origId) s.sid = newId; });
+    if (DB.activeSessions[origId]) {
+      DB.activeSessions[newId] = DB.activeSessions[origId];
+      delete DB.activeSessions[origId];
+    }
+    if (currentUser.id === origId) currentUser.id = newId;
+  }
+
+  saveDB();
+  closeModal('modalEditUser');
+  refreshCurrentPortal();
+}
+
+function toggleHideUser(id) {
+  AudioFX.click();
+  if (!confirm(`Are you sure you want to hide user ${id}? They will be unable to log in.`)) return;
+  DB.users[id].visible = false;
+  saveDB();
+  refreshCurrentPortal();
+}
+
+function deleteUser(id) {
+  AudioFX.click();
+  if (!confirm(`Permanently delete account ${id}? This cannot be undone.`)) return;
+  delete DB.users[id];
+  saveDB();
+  refreshCurrentPortal();
+}
+
+// 4. Assessment Builder
+let configuredQuestions = [];
+
+function openCreateTestModal() {
+  editingTestId = null;
+  configuredQuestions = [];
+  document.getElementById('ctModalHeading').textContent = 'Create New Assessment';
+  document.getElementById('ct_id').value = '';
+  document.getElementById('ct_title').value = '';
+  document.getElementById('ct_subj').value = '';
+  document.getElementById('ct_year').value = '1';
+  document.getElementById('ct_duration').value = '30';
+  document.getElementById('ct_attempts').value = '1';
+  document.getElementById('ct_pos').value = '4';
+  document.getElementById('ct_neg').value = '1';
+
+  renderConfiguredQuestions();
+  openModal('modalCreateTest');
+}
+
+function openEditTestModal(testId) {
+  editingTestId = testId;
+  const test = DB.tests.find(t => t.id === testId);
+  document.getElementById('ctModalHeading').textContent = 'Edit Assessment Configuration';
+  document.getElementById('ct_id').value = test.id;
+  document.getElementById('ct_title').value = test.title;
+  document.getElementById('ct_subj').value = test.subject || '';
+  document.getElementById('ct_year').value = test.year;
+  document.getElementById('ct_duration').value = test.duration;
+  document.getElementById('ct_attempts').value = test.maxAttempts || 1;
+  document.getElementById('ct_pos').value = test.posMarks || 4;
+  document.getElementById('ct_neg').value = test.negMarks || 0;
+
+  configuredQuestions = JSON.parse(JSON.stringify(test.questions || []));
+  renderConfiguredQuestions();
+  openModal('modalCreateTest');
+}
+
+function appendNewQuestion(type) {
+  AudioFX.click();
+  if (type === 'mcq') {
+    configuredQuestions.push({
+      type: 'mcq',
+      q: '',
+      opts: ['', '', '', ''],
+      ans: 0
+    });
+  } else {
+    configuredQuestions.push({
+      type: 'code',
+      lang: 'javascript',
+      q: '',
+      starter: '// Write your function here\n'
+    });
+  }
+  renderConfiguredQuestions();
+}
+
+function removeQuestionItem(idx) {
+  AudioFX.click();
+  configuredQuestions.splice(idx, 1);
+  renderConfiguredQuestions();
+}
+
+function renderConfiguredQuestions() {
+  const container = document.getElementById('ctQuestionsContainer');
+  if (configuredQuestions.length === 0) {
+    container.innerHTML = `
+      <div class="p-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-slate-400">
+        <i class="fas fa-cubes text-3xl mb-2 text-slate-300"></i>
+        <p class="text-xs font-bold">No questions added yet. Use the buttons above to add MCQs or Coding questions.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = configuredQuestions.map((q, idx) => {
+    if (q.type === 'mcq') {
+      return `
+        <div class="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded text-[11px] font-extrabold uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+              Q${idx + 1} • MCQ
+            </span>
+            <button type="button" onclick="removeQuestionItem(${idx})" class="text-xs text-red-500 hover:text-red-700 font-bold"><i class="fas fa-trash"></i></button>
+          </div>
+          <textarea rows="2" placeholder="Question statement..." onchange="configuredQuestions[${idx}].q = this.value" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold leading-relaxed">${q.q}</textarea>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            ${[0, 1, 2, 3].map(oi => `
+              <div class="flex items-center gap-2 p-2 rounded-xl border ${q.ans === oi ? 'border-emerald-500 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-slate-200 dark:border-slate-700'}">
+                <input type="radio" name="ct_ans_${idx}" value="${oi}" ${q.ans === oi ? 'checked' : ''} onchange="configuredQuestions[${idx}].ans = ${oi}; renderConfiguredQuestions();" class="text-emerald-600">
+                <input type="text" placeholder="Option ${oi + 1}" value="${q.opts[oi] || ''}" onchange="configuredQuestions[${idx}].opts[${oi}] = this.value" class="w-full bg-transparent text-xs outline-none">
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    } else {
+      return `
+        <div class="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded text-[11px] font-extrabold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              Q${idx + 1} • Coding Challenge
+            </span>
+            <button type="button" onclick="removeQuestionItem(${idx})" class="text-xs text-red-500 hover:text-red-700 font-bold"><i class="fas fa-trash"></i></button>
+          </div>
+          <textarea rows="2" placeholder="Problem description / input-output requirements..." onchange="configuredQuestions[${idx}].q = this.value" class="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold">${q.q}</textarea>
+          <div class="flex items-center gap-3">
+            <label class="text-xs font-bold text-slate-500">Language:</label>
+            <select onchange="configuredQuestions[${idx}].lang = this.value" class="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800">
+              <option value="javascript" ${q.lang === 'javascript' ? 'selected' : ''}>JavaScript</option>
+              <option value="python" ${q.lang === 'python' ? 'selected' : ''}>Python 3</option>
+              <option value="java" ${q.lang === 'java' ? 'selected' : ''}>Java</option>
+              <option value="cpp" ${q.lang === 'cpp' ? 'selected' : ''}>C++</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Starter Boilerplate Code:</label>
+            <textarea rows="4" onchange="configuredQuestions[${idx}].starter = this.value" class="w-full p-3 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs">${q.starter || ''}</textarea>
+          </div>
+        </div>
+      `;
+    }
+  }).join('');
+}
+
+function saveConfiguredTest() {
+  const title = document.getElementById('ct_title').value.trim();
+  if (!title) {
+    alert('Please enter an assessment title.');
+    return;
+  }
+  if (configuredQuestions.length === 0) {
+    alert('Please add at least 1 question to the assessment.');
+    return;
+  }
+
+  AudioFX.success();
+  const id = editingTestId || ('t' + Date.now());
+  const newRecord = {
+    id,
+    title,
+    subject: document.getElementById('ct_subj').value.trim() || 'Engineering',
+    year: parseInt(document.getElementById('ct_year').value),
+    duration: parseInt(document.getElementById('ct_duration').value) || 30,
+    maxAttempts: parseInt(document.getElementById('ct_attempts').value) || 1,
+    posMarks: parseInt(document.getElementById('ct_pos').value) || 4,
+    negMarks: parseInt(document.getElementById('ct_neg').value) || 0,
+    isActive: false,
+    createdBy: currentUser.id,
+    assignedTo: editingTestId ? (DB.tests.find(t => t.id === editingTestId)?.assignedTo || []) : [],
+    questions: configuredQuestions
+  };
+
+  if (editingTestId) {
+    const idx = DB.tests.findIndex(t => t.id === editingTestId);
+    if (idx >= 0) DB.tests[idx] = newRecord;
+  } else {
+    DB.tests.push(newRecord);
+  }
+
+  saveDB();
+  closeModal('modalCreateTest');
+  refreshCurrentPortal();
+}
+
+// Initial Kickoff
+window.addEventListener('DOMContentLoaded', () => {
+  AudioFX.init();
+  initFirebase();
+});
+
+// =================== FIREBASE INTEGRATION ===================
+let firebaseApp = null;
+let firebaseStorage = null;
+let firebaseConnected = false;
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyAxLtUPfLPhzcOSPNZdCE_fRTSH59qlW64",
+  authDomain:        "qtest-engine.firebaseapp.com",
+  projectId:         "qtest-engine",
+  storageBucket:     "qtest-engine.firebasestorage.app",
+  messagingSenderId: "1070772117596",
+  appId:             "1:1070772117596:web:1d620cc178a4d274560699",
+  measurementId:     "G-SVFJ21KJED"
+};
+
+function initFirebase() {
+  try {
+    // Initialise only once
+    if (firebase.apps.length === 0) {
+      firebaseApp = firebase.initializeApp(firebaseConfig);
+    } else {
+      firebaseApp = firebase.app();
+    }
+    firebaseStorage = firebase.storage();
+
+    // Try to get metadata of the root bucket — lightweight connectivity probe
+    probeFirebaseStorage();
+  } catch (err) {
+    console.error('[QTest Firebase] Init error:', err);
+    setFirebaseStatus(false, 'Init Error', err.message || 'SDK failed to initialise');
+  }
+}
+
+function probeFirebaseStorage() {
+  // We list the root ref; if it resolves (even with permission error) it means
+  // we reached Firebase servers → mark CONNECTED.
+  // A network failure will reject with a "network-request-failed" code → NOT CONNECTED.
+  const storageRef = firebaseStorage.ref('/');
+  storageRef.listAll()
+    .then(() => {
+      setFirebaseStatus(true, 'Storage Connected', 'Cloud storage is online & reachable');
+    })
+    .catch(err => {
+      // Firebase permission errors (storage/unauthorized, storage/object-not-found)
+      // mean the network succeeded but auth blocked — storage IS reachable.
+      const networkErrors = ['storage/retry-limit-exceeded', 'storage/cannot-slice-blob', 'storage/server-file-wrong-size'];
+      const isNetErr = networkErrors.includes(err.code) || err.code === 'storage/unknown';
+      if (!isNetErr && err.code) {
+        // Reached Firebase but hit a permission wall → counts as "connected"
+        setFirebaseStatus(true, 'Storage Reachable', 'Connected — permission rules active');
+      } else {
+        setFirebaseStatus(false, 'Storage Offline', err.message || 'Cannot reach Firebase servers');
+      }
+    });
+}
+
+/** Updates both the header pill and the admin card.
+ * @param {boolean} connected  - true = green, false = yellow/amber
+ * @param {string}  title      - short status label
+ * @param {string}  subtitle   - detail text for admin card
+ */
+function setFirebaseStatus(connected, title, subtitle) {
+  firebaseConnected = connected;
+
+  // ── Header Pill ──
+  const pill     = document.getElementById('firebaseStatusPill');
+  const dot      = document.getElementById('firebaseStatusDot');
+  const txt      = document.getElementById('firebaseStatusText');
+  const icon     = document.getElementById('firebaseStatusIcon');
+
+  if (pill && dot && txt && icon) {
+    // Show pill
+    pill.classList.remove('hidden');
+    pill.classList.add('sm:flex');
+
+    if (connected) {
+      dot.className  = 'w-2 h-2 rounded-full bg-emerald-500 shrink-0';
+      txt.className  = 'text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 whitespace-nowrap';
+      txt.textContent = 'Cloud Live';
+      icon.className = 'fas fa-cloud-arrow-up text-[10px] text-emerald-500';
+    } else {
+      dot.className  = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0';
+      txt.className  = 'text-[10px] font-extrabold uppercase tracking-wider text-amber-500 dark:text-amber-400 whitespace-nowrap';
+      txt.textContent = 'Not Connected';
+      icon.className = 'fas fa-cloud-slash text-[10px] text-amber-400';
+    }
+  }
+
+  // ── Admin Dashboard Card ──
+  const cardTitle   = document.getElementById('fbCardTitle');
+  const cardSub     = document.getElementById('fbCardSub');
+  const cardDot     = document.getElementById('fbCardDot');
+  const cardLabel   = document.getElementById('fbCardLabel');
+  const cardIcon    = document.getElementById('fbCardIconWrap');
+
+  if (cardTitle && cardSub && cardDot && cardLabel && cardIcon) {
+    if (connected) {
+      cardTitle.textContent   = title || 'Storage Connected';
+      cardSub.textContent     = subtitle || 'Cloud storage is live & reachable';
+      cardDot.className       = 'w-3 h-3 rounded-full bg-emerald-500 block';
+      cardLabel.className     = 'text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400';
+      cardLabel.textContent   = 'Online';
+      cardTitle.className     = 'text-base font-black text-emerald-600 dark:text-emerald-400 leading-tight transition-colors duration-500';
+      cardIcon.className      = 'w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 transition-all duration-500';
+    } else {
+      cardTitle.textContent   = title || 'Not Connected';
+      cardSub.textContent     = subtitle || 'Firebase Storage is offline or unreachable';
+      cardDot.className       = 'w-3 h-3 rounded-full bg-amber-400 animate-pulse block';
+      cardLabel.className     = 'text-[10px] font-black uppercase tracking-wider text-amber-500 dark:text-amber-400';
+      cardLabel.textContent   = 'Offline';
+      cardTitle.className     = 'text-base font-black text-amber-500 dark:text-amber-400 leading-tight transition-colors duration-500';
+      cardIcon.className      = 'w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 bg-amber-100 dark:bg-amber-950/40 text-amber-500 dark:text-amber-400 transition-all duration-500';
+    }
+  }
+}
+
+// Re-probe every 30s to keep status fresh
+setInterval(() => {
+  if (firebaseStorage) probeFirebaseStorage();
+}, 30000);
+</script>
+</body>
+</html>
